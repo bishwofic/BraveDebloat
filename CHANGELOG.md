@@ -2,13 +2,18 @@
 
 ## Unreleased
 
+<<<<<<< HEAD
 ## 0.8.0 - 2026-10-12
 
+- `-Doctor` reports DNS-over-HTTPS state from the selected target: `DNS over HTTPS: <mode> (<resolver>)`, or `not managed` when `DnsOverHttpsMode` and `DnsOverHttpsTemplates` are absent.
 - `BraveDebloat.exe` now resolves relative paths against the folder you run it from. Previously it ran the script inside its own folder, so `BraveDebloat -ExportPolicyPath .\brave.reg` (or a relative `-PolicyPath`, `-ProfileRoot`, `-BackupDirectory`, or `-UndoFromBackup`) used the launcher's folder, which for winget is a package folder that upgrades replace.
 - `-Doctor` on macOS now checks obsolete and explicitly blocked policy names, including `IPFSEnabled` and `BraveShieldsDisabledForUrls`. It identifies read failures as an incomplete safety check and explains the scan's limits even when it finds a protected policy. Open `brave://policy` for names outside that scan, including pattern-only safety matches.
 - `-Customize` now stops with a clear message when no answer can be read (redirected or closed input, for example in a scheduled task or CI), instead of failing with "You cannot call a method on a null-valued expression."
 - `install.ps1` resolves `~` and filesystem PowerShell drive paths in `-Destination`, `-ArchivePath`, and `-ChecksumPath`. Previously `-Destination ~/Tools/BraveDebloater` installed into a folder literally named `~` under the current folder. Non-filesystem providers such as `Env:` and `Variable:` now produce an error instead of a disk path.
 - Launcher smoke tests use unique filenames so they cannot overwrite a local `BraveDebloat.exe` build or delete an unrelated `relative-export.json`. They also check relative export, apply, backup, and restore paths.
+=======
+- `-Doctor` reports DNS-over-HTTPS state from the selected target: `DNS over HTTPS: <mode> (<resolver>)`, or `not managed` when `DnsOverHttpsMode` and `DnsOverHttpsTemplates` are absent.
+>>>>>>> 188a446 (Show DNS-over-HTTPS state in -Doctor)
 - `-ReportPath <file.html>` saves a self-contained HTML report of a dry run or `-Apply` run: each policy's current and new value, run details, and the exact undo command with a Copy button. Skipped profile cleanup (Brave running, no profile files, or an invalid `Preferences` file) is listed in the report, and prior profile values that are JSON `null` or objects are shown as JSON.
 - A weekly workflow compares Brave's latest policy templates with `config/policy-template-snapshot.json` and opens a pull request listing new, removed, and deprecated policies.
 - Updated the manifest and policy snapshot to Brave template `156.1.99.33`. `AutofillSettings` replaces the deprecated address/card Autofill switches, with structured JSON/plist support and a JSON string in the Windows registry. Apply backs up and removes the old values; undo still restores them.
