@@ -42,9 +42,11 @@ namespace BraveDebloater
                 }
 
                 bool ownsConsole = OwnsConsole();
+                // The child inherits this process's working directory, so relative paths in the arguments
+                // (for example -ExportPolicyPath .\brave.reg) resolve against the caller's folder, as they do
+                // when the script runs directly, not inside the launcher's package folder.
                 ProcessStartInfo startInfo = new ProcessStartInfo(shell, BuildArguments(scriptPath, args));
                 startInfo.UseShellExecute = false;
-                startInfo.WorkingDirectory = Path.GetDirectoryName(scriptPath);
                 // Tells the script to quote printed commands for cmd.exe, where this launcher usually runs.
                 startInfo.EnvironmentVariables["BRAVEDEBLOATER_LAUNCHER"] = "1";
 

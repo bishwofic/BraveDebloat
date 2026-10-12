@@ -23,10 +23,11 @@ irm https://raw.githubusercontent.com/osfv/BraveDebloater/main/install.ps1 | iex
 
 winget's community repository only accepts `.exe` files as portable commands, so the Windows zip ships a
 small launcher compiled from `launcher/BraveDebloat.cs`. It starts `pwsh.exe` (or `powershell.exe` when
-PowerShell 7 is not installed) with `-NoProfile -ExecutionPolicy Bypass -File Invoke-BraveDebloat.ps1`
-from its own folder, forwards the arguments, and returns the script's exit code. Started from Explorer, it
-waits for Enter before closing. The launcher writes nothing itself; the dry-run default and `-Apply` rule
-of the script still apply.
+PowerShell 7 is not installed) with `-NoProfile -ExecutionPolicy Bypass -File` and the
+`Invoke-BraveDebloat.ps1` in its own folder, forwards the arguments, and returns the script's exit code.
+Relative paths in the arguments resolve against the folder you run it from, as they do for the script.
+Started from Explorer, it waits for Enter before closing. The launcher writes nothing itself; the dry-run
+default and `-Apply` rule of the script still apply.
 
 `scripts/Build-Launcher.ps1 -Version X.Y.Z` compiles it with the C# compiler that ships in .NET
 Framework, so no SDK download is needed on Windows. Pass `-CompilerPath` to use Mono's `mcs` elsewhere.

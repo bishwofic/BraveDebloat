@@ -309,7 +309,7 @@ function Get-PolicyValue {
 
     if ($Target.Kind -eq 'MacOSDefaults' -or $Target.Kind -eq 'MacOSPlist') {
         if (-not (Test-Path -LiteralPath '/usr/bin/defaults')) {
-            return [pscustomobject]@{ Exists = $false; Value = $null; Kind = $null; ReadError = $false }
+            return [pscustomobject]@{ Exists = $false; Value = $null; Kind = $null; ReadError = $true; ErrorMessage = 'The macOS policy reader /usr/bin/defaults is unavailable on this host.' }
         }
 
         $domain = if ($Target.Kind -eq 'MacOSDefaults') { $Target.Path } else { $Target.Path -replace '\.plist$', '' }
@@ -610,6 +610,11 @@ function Get-PolicyReport {
         elseif ($Target.Kind -eq 'MacOSDefaults' -or $Target.Kind -eq 'MacOSPlist') {
             foreach ($policyName in $PolicyNames) {
                 $value = Get-PolicyValue -Target $Target -Name $policyName
+                if ($value.ReadError) {
+                    $canRead = $false
+                    $errorMessage = "Could not read '$policyName': $(Get-PolicyValueErrorMessage -Value $value)"
+                    continue
+                }
                 if ($value.Exists) {
                     $keyExists = $true
                     [void]$entries.Add([pscustomobject]@{ Name = $policyName; Value = $value.Value; Kind = $value.Kind })

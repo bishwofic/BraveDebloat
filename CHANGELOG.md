@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- `BraveDebloat.exe` now resolves relative paths against the folder you run it from. Previously it ran the script inside its own folder, so `BraveDebloat -ExportPolicyPath .\brave.reg` (or a relative `-PolicyPath`, `-ProfileRoot`, `-BackupDirectory`, or `-UndoFromBackup`) used the launcher's folder, which for winget is a package folder that upgrades replace.
+- `-Doctor` on macOS now checks obsolete and explicitly blocked policy names, including `IPFSEnabled` and `BraveShieldsDisabledForUrls`. It identifies read failures as an incomplete safety check and explains the scan's limits even when it finds a protected policy. Open `brave://policy` for names outside that scan, including pattern-only safety matches.
+- `-Customize` now stops with a clear message when no answer can be read (redirected or closed input, for example in a scheduled task or CI), instead of failing with "You cannot call a method on a null-valued expression."
+- `install.ps1` resolves `~` and filesystem PowerShell drive paths in `-Destination`, `-ArchivePath`, and `-ChecksumPath`. Previously `-Destination ~/Tools/BraveDebloater` installed into a folder literally named `~` under the current folder. Non-filesystem providers such as `Env:` and `Variable:` now produce an error instead of a disk path.
+- Launcher smoke tests use unique filenames so they cannot overwrite a local `BraveDebloat.exe` build or delete an unrelated `relative-export.json`. They also check relative export, apply, backup, and restore paths.
 - `-DnsOverHttpsTemplates https://a,https://b` through `powershell -File` or `BraveDebloat.exe` now sets two resolvers. Previously the comma-joined text was written as one invalid template. A comma before `https://` that comes after a query string is ambiguous, so it is now rejected with a hint to use spaces or `%2C`.
 - The undo command printed through `BraveDebloat.exe` no longer ends a quoted path with a backslash (for example `-ProfileRoot "...\User Data\"`), which escaped the closing quote and broke the pasted command.
 - `install.ps1` installs into a folder that only holds a `backups/` folder instead of refusing it as not empty. A `Backups/` folder counts as that folder only on case-insensitive filesystems (Windows, default macOS); on case-sensitive filesystems it is treated as existing content.

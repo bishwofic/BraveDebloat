@@ -330,6 +330,8 @@ Use `-Doctor` when you want to inspect Brave without changing anything.
 
 It checks policy locations, detected feature status, unknown Brave policies, protected policy names, Brave process state, profile preference files, and backups.
 
+On macOS, Doctor reads managed, obsolete, and explicitly blocked policy names individually. It does not enumerate other names, including policies covered only by a safety pattern. The report identifies this limit and marks policy read failures as an incomplete safety check. Open `brave://policy` to review the full list.
+
 This helps after testing other debloat tools. Machine-wide policies can make Brave settings appear managed for every Windows user, even when current-user policies look empty.
 
 ## Profile Preferences

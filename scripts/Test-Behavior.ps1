@@ -79,6 +79,62 @@ try {
         throw '-Doctor -Apply created a backup directory.'
     }
 
+    # macOS policies are read one name at a time, so -Doctor must also ask for obsolete and protected
+    # names instead of reporting "no protected Brave policy names" without ever reading them.
+    function Get-MacOSDoctorOutput {
+        param([string]$TargetKind = 'MacOSDefaults', [switch]$ReadFailure, [switch]$EmptyDomain)
+        foreach ($module in @('Common', 'Manifest', 'PlatformPolicy', 'Backup', 'ProfilePreferences', 'Reports')) {
+            . (Join-Path $root "src/$module.ps1")
+        }
+        $doctorManifest = Get-JsonFileContent -Path (Join-Path $root 'config/policies.json')
+        $macDomain = @{ BraveRewardsDisabled = $true; IPFSEnabled = $false; BraveShieldsDisabledForUrls = 'https://example.com' }
+        function Get-PolicyValue {
+            param($Target, [string]$Name)
+            if ($Target.Kind -eq $TargetKind) {
+                if ($ReadFailure -and $Name -eq 'BraveShieldsDisabledForUrls') {
+                    return [pscustomobject]@{ Exists = $false; Value = $null; Kind = $null; ReadError = $true; ErrorMessage = 'Injected policy read failure' }
+                }
+                if (-not $EmptyDomain -and $macDomain.ContainsKey($Name)) {
+                    return [pscustomobject]@{ Exists = $true; Value = $macDomain[$Name]; Kind = 'String'; ReadError = $false }
+                }
+            }
+            return [pscustomobject]@{ Exists = $false; Value = $null; Kind = $null; ReadError = $false }
+        }
+        return (Show-DoctorReport -Manifest $doctorManifest -Features @($doctorManifest.features) -PolicyDefinitions (Get-ManifestMap -Object $doctorManifest.policies) -ProfileRoot $missingProfileRoot -BackupDirectory $doctorBackupDirectory -PlatformName macOS *>&1 | Out-String -Width 4096)
+    }
+    foreach ($targetKind in @('MacOSDefaults', 'MacOSPlist')) {
+        $macDoctorOutput = Get-MacOSDoctorOutput -TargetKind $targetKind
+        Assert-TextContains -Text $macDoctorOutput -Expected "Safety issue: Protected policy 'BraveShieldsDisabledForUrls' is present." -Context "macOS $targetKind -Doctor output"
+        Assert-TextContains -Text $macDoctorOutput -Expected 'Obsolete leftover policies: detected.' -Context "macOS $targetKind -Doctor output"
+        Assert-TextContains -Text $macDoctorOutput -Expected 'IPFSEnabled' -Context "macOS $targetKind -Doctor output"
+        Assert-TextDoesNotContain -Text $macDoctorOutput -Unexpected 'Safety: no protected Brave policy names were detected.' -Context "macOS $targetKind -Doctor output"
+        Assert-TextContains -Text $macDoctorOutput -Expected 'Other names, including pattern-only matches, were not checked.' -Context "macOS $targetKind scan limits"
+
+        $failedDoctorOutput = Get-MacOSDoctorOutput -TargetKind $targetKind -ReadFailure
+        Assert-TextContains -Text $failedDoctorOutput -Expected 'Safety check incomplete:' -Context "macOS $targetKind read failure"
+        Assert-TextContains -Text $failedDoctorOutput -Expected 'Injected policy read failure' -Context "macOS $targetKind read failure"
+        Assert-TextContains -Text $failedDoctorOutput -Expected 'Read failed' -Context "macOS $targetKind feature status"
+        Assert-TextContains -Text $failedDoctorOutput -Expected 'IPFSEnabled' -Context "macOS $targetKind partial results"
+        Assert-TextDoesNotContain -Text $failedDoctorOutput -Unexpected 'Safety: no protected Brave policy names were detected.' -Context "macOS $targetKind read failure"
+    }
+    $emptyMacDoctorOutput = Get-MacOSDoctorOutput -EmptyDomain
+    Assert-TextContains -Text $emptyMacDoctorOutput -Expected 'Safety: no explicitly blocked names were found among the policies checked.' -Context 'macOS empty policy scan'
+    Assert-TextContains -Text $emptyMacDoctorOutput -Expected 'Other names, including pattern-only matches, were not checked.' -Context 'macOS empty scan limits'
+    Assert-TextContains -Text $emptyMacDoctorOutput -Expected 'Unknown Brave policies: not fully checked.' -Context 'macOS unknown policy coverage'
+
+    function Test-MissingMacOSReader {
+        . (Join-Path $root 'src/Common.ps1')
+        . (Join-Path $root 'src/PlatformPolicy.ps1')
+        function Test-Path { param([string]$LiteralPath) return $false }
+        foreach ($kind in @('MacOSDefaults', 'MacOSPlist')) {
+            $report = Get-PolicyReport -Target ([pscustomobject]@{ Kind = $kind; Path = 'com.brave.Browser' }) -ScopeName CurrentUser -PolicyNames BraveShieldsDisabledForUrls
+            if ($report.CanRead -or $report.ErrorMessage -notlike '*defaults*unavailable*') {
+                throw 'macOS policy inspection reported success without the native reader.'
+            }
+        }
+    }
+    Test-MissingMacOSReader
+
     $excludeOutput = (& $scriptPath -Preset Extreme -ExcludeFeature News,LeoAI -List *>&1 | Out-String -Width 4096)
     Assert-TextContains -Text $excludeOutput -Expected 'BraveRewardsDisabled' -Context '-ExcludeFeature output'
     Assert-TextDoesNotContain -Text $excludeOutput -Unexpected 'BraveNewsDisabled' -Context '-ExcludeFeature output'
@@ -224,6 +280,45 @@ try {
             throw '-OnlyFeature did not reject a conflicting custom feature switch.'
         }
     }
+
+    # -Customize must stop with a clear message, not a null-method error, when no answer can be read
+    # (stdin redirected or closed, for example in a scheduled task or CI).
+    function Get-CustomizeWithoutInputMessage {
+        . (Join-Path $root 'src/Common.ps1')
+        . (Join-Path $root 'src/Manifest.ps1')
+        function Read-Host { return $null }
+        try {
+            Read-FeatureChoice -Feature ([pscustomobject]@{ label = 'Brave Rewards' }) -Default $true | Out-Null
+        }
+        catch {
+            return $_.Exception.Message
+        }
+        return ''
+    }
+    $customizeWithoutInputMessage = Get-CustomizeWithoutInputMessage
+    if ($customizeWithoutInputMessage -notlike '-Customize needs an answer for each feature*No changes were made.') {
+        throw "-Customize without input did not explain how to continue: $customizeWithoutInputMessage"
+    }
+
+    function Test-CustomizeAnswers {
+        . (Join-Path $root 'src/Manifest.ps1')
+        foreach ($case in @(
+            @{ Answers = @(''); Default = $true; Expected = $true },
+            @{ Answers = @('   '); Default = $false; Expected = $false },
+            @{ Answers = @(' YES '); Default = $false; Expected = $true },
+            @{ Answers = @(' no '); Default = $true; Expected = $false },
+            @{ Answers = @('invalid', 'n'); Default = $true; Expected = $false }
+        )) {
+            $answers = New-Object System.Collections.Generic.Queue[string]
+            foreach ($answer in $case.Answers) { $answers.Enqueue($answer) }
+            function Read-Host { return $answers.Dequeue() }
+            $choice = Read-FeatureChoice -Feature ([pscustomobject]@{ label = 'Brave Rewards' }) -Default $case.Default
+            if ($choice -isnot [bool] -or $choice -ne $case.Expected -or $answers.Count -ne 0) {
+                throw '-Customize did not honor a supplied answer or its blank-answer default.'
+            }
+        }
+    }
+    Test-CustomizeAnswers *> $null
 
     $filteredPatchOutput = (& $scriptPath -Preset Extreme -ExcludeFeature News,Rewards,Wallet -List -IncludeProfilePreferences *>&1 | Out-String -Width 4096)
     Assert-TextContains -Text $filteredPatchOutput -Expected 'brave.new_tab_page.show_branded_background_image' -Context 'filtered profile patch output'
@@ -1298,6 +1393,58 @@ try {
     Assert-TextContains -Text $installOutput -Expected 'Nothing is written until you add -Apply.' -Context 'install.ps1 first install output'
     if (-not (Test-Path -LiteralPath (Join-Path $installDestination 'src/Release-9.9.9.ps1'))) {
         throw 'install.ps1 did not extract the release tree into the destination.'
+    }
+
+    # ~ in -Destination and -ArchivePath means the home folder, as in other PowerShell paths, not a folder named ~.
+    $fileSystemProvider = Get-PSProvider -PSProvider FileSystem
+    $originalFileSystemHome = $fileSystemProvider.Home
+    Push-Location -LiteralPath $tempRoot
+    try {
+        $fileSystemProvider.Home = $installRoot
+        $tildeInstallOutput = (& $installScriptPath -ArchivePath '~/first/BraveDebloater-v9.9.9.zip' -ChecksumPath '~/first/SHA256SUMS.txt' -Destination '~/TildeDestination' *>&1 | Out-String -Width 4096)
+    }
+    finally {
+        $fileSystemProvider.Home = $originalFileSystemHome
+        Pop-Location
+    }
+    Assert-TextContains -Text $tildeInstallOutput -Expected "Installed BraveDebloater 9.9.9 to $(Join-Path $installRoot 'TildeDestination')" -Context 'install.ps1 with ~ paths'
+    if (Test-Path -LiteralPath (Join-Path $tempRoot '~')) {
+        throw 'install.ps1 created a folder named ~ instead of using the home folder.'
+    }
+
+    $installDrive = 'BDInstall' + [guid]::NewGuid().ToString('N')
+    New-PSDrive -Name $installDrive -PSProvider FileSystem -Root $installRoot | Out-Null
+    try {
+        $driveInstallOutput = (& $installScriptPath -ArchivePath "${installDrive}:/first/BraveDebloater-v9.9.9.zip" -ChecksumPath "${installDrive}:/first/SHA256SUMS.txt" -Destination "${installDrive}:/DriveDestination" *>&1 | Out-String -Width 4096)
+        Assert-TextContains -Text $driveInstallOutput -Expected "Installed BraveDebloater 9.9.9 to $(Join-Path $installRoot 'DriveDestination')" -Context 'install.ps1 with filesystem drive paths'
+        if (-not (Test-Path -LiteralPath (Join-Path $installRoot 'DriveDestination/src/Release-9.9.9.ps1'))) {
+            throw 'install.ps1 did not resolve a filesystem PSDrive.'
+        }
+    }
+    finally {
+        Remove-PSDrive -Name $installDrive
+    }
+
+    Push-Location -LiteralPath $tempRoot
+    try {
+        foreach ($providerName in @('Env', 'Variable')) {
+            foreach ($parameterName in @('Destination', 'ArchivePath', 'ChecksumPath')) {
+                $providerArguments = @{ ArchivePath = $firstArchive; Destination = (Join-Path $installRoot 'InvalidProviderDestination') }
+                $providerArguments[$parameterName] = "${providerName}:ProviderDestination"
+                $providerMessage = ''
+                try { & $installScriptPath @providerArguments *> $null }
+                catch { $providerMessage = $_.Exception.Message }
+                if ($providerMessage -notlike '*must be a filesystem path*') {
+                    throw "install.ps1 accepted or misreported $providerName in ${parameterName}: $providerMessage"
+                }
+                if ((Test-Path -LiteralPath (Join-Path $tempRoot 'ProviderDestination')) -or (Test-Path -LiteralPath (Join-Path $installRoot 'InvalidProviderDestination'))) {
+                    throw 'install.ps1 wrote a destination for a non-filesystem provider path.'
+                }
+            }
+        }
+    }
+    finally {
+        Pop-Location
     }
 
     # The printed Set-Location line must work when pasted, even for folders with an apostrophe or brackets.
