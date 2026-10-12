@@ -78,10 +78,24 @@ function Install-BraveDebloater {
 
     function Get-FullPath {
         param([string]$Path)
-        if ([System.IO.Path]::IsPathRooted($Path)) {
-            return [System.IO.Path]::GetFullPath($Path)
+        # Resolve ~ and PowerShell drives the way cmdlets do. .NET alone treats ~ as a folder name.
+        $resolved = $Path
+        $provider = $null
+        $drive = $null
+        try {
+            $resolved = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Path, [ref]$provider, [ref]$drive)
         }
-        return [System.IO.Path]::GetFullPath((Join-Path (Get-Location).ProviderPath $Path))
+        catch {
+            # Not a PowerShell drive (for example an unmapped drive letter); resolve it as typed.
+            $resolved = $Path
+        }
+        if ($null -ne $provider -and $provider.Name -ne 'FileSystem') {
+            throw "Path '$Path' must be a filesystem path. Use a disk folder or file, not the $($provider.Name) provider."
+        }
+        if ([System.IO.Path]::IsPathRooted($resolved)) {
+            return [System.IO.Path]::GetFullPath($resolved)
+        }
+        return [System.IO.Path]::GetFullPath((Join-Path (Get-Location).ProviderPath $resolved))
     }
 
     function Get-LatestReleaseTag {

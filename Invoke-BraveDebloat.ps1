@@ -421,16 +421,17 @@ $appliedPolicyCount = 0
 $alreadySetCount = 0
 foreach ($policyName in $policyNames) {
     $definition = $policyDefinitions[$policyName]
+    $plannedValue = Get-RunReportValueText -Value $definition.value
     $stateNote = Get-PolicyStateNote -CurrentValues $currentPolicyValues -Name $policyName -Definition $definition
     $reportStatus = $null
     if (-not $applyChanges) {
         if ($stateNote.AlreadySet) {
             $alreadySetCount++
         }
-        Write-DryRun "Would set $policyName = $($definition.value) ($($definition.reason))$($stateNote.Text)"
+        Write-DryRun "Would set $policyName = $plannedValue ($($definition.reason))$($stateNote.Text)"
         $reportStatus = if ($stateNote.AlreadySet) { 'Already set' } else { 'Would set' }
     }
-    elseif ($PSCmdlet.ShouldProcess($policyTarget.Path, "Set $policyName to $($definition.value)")) {
+    elseif ($PSCmdlet.ShouldProcess($policyTarget.Path, "Set $policyName to $plannedValue")) {
         Set-PolicyValue -Target $policyTarget -Name $policyName -Definition $definition
         $appliedPolicyCount++
         Write-Step "Set $policyName."

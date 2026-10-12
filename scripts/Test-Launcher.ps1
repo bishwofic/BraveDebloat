@@ -22,8 +22,9 @@ $root = Split-Path -Parent $PSScriptRoot
 if (-not (Test-Path -LiteralPath $LauncherPath -PathType Leaf)) {
     throw "Launcher not found: $LauncherPath"
 }
-$launcher = Join-Path $root 'BraveDebloat.exe'
-Copy-Item -LiteralPath $LauncherPath -Destination $launcher -Force
+$testId = [guid]::NewGuid().ToString('N')
+$launcher = Join-Path $root "BraveDebloat-test-$testId.exe"
+[System.IO.File]::Copy((Resolve-Path -LiteralPath $LauncherPath).ProviderPath, $launcher, $false)
 try {
     # The failing run comes first so the step's final $LASTEXITCODE reflects a passing run.
     # Windows PowerShell 5.1 turns a native command's stderr into an error record, which 'Stop' would make fatal.
@@ -49,6 +50,51 @@ try {
     $expectedText = if ([string]::IsNullOrWhiteSpace($ExpectedVersion)) { 'BraveDebloater ' } else { "BraveDebloater $ExpectedVersion" }
     if (-not $versionOutput.Contains($expectedText)) {
         throw "BraveDebloat.exe -Version did not report '$expectedText'. Output: $versionOutput"
+    }
+
+    # Relative paths resolve against the caller's folder, as when the script runs directly, not against the
+    # launcher's folder (for winget, a package folder that upgrades replace).
+    $callerRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('BraveDebloat Caller {0}' -f [guid]::NewGuid().ToString('N'))
+    $exportName = "relative-export-$testId.json"
+    $strayExport = Join-Path $root $exportName
+    if (Test-Path -LiteralPath $strayExport) {
+        throw "Test export path already exists: $strayExport"
+    }
+    New-Item -ItemType Directory -Path $callerRoot -Force | Out-Null
+    Push-Location -LiteralPath $callerRoot
+    try {
+        $relativeExportOutput = (& $launcher -Platform Linux -OnlyFeature Rewards -ExportPolicyPath $exportName 2>&1 | Out-String -Width 4096)
+        if ($LASTEXITCODE -ne 0) {
+            throw "BraveDebloat.exe relative export exited with $LASTEXITCODE. Output: $relativeExportOutput"
+        }
+        $exportPath = Join-Path $callerRoot $exportName
+        if (-not (Test-Path -LiteralPath $exportPath)) {
+            throw "BraveDebloat.exe did not write a relative -ExportPolicyPath into the caller's folder. Output: $relativeExportOutput"
+        }
+        $payload = Get-Content -LiteralPath $exportPath -Raw | ConvertFrom-Json
+        if ($payload.BraveRewardsDisabled -isnot [bool] -or -not $payload.BraveRewardsDisabled) {
+            throw 'BraveDebloat.exe wrote an incorrect relative export payload.'
+        }
+
+        $relativeApplyOutput = (& $launcher -Platform Linux -OnlyFeature Rewards -PolicyPath 'policy.json' -BackupDirectory 'backups' -Apply 2>&1 | Out-String -Width 4096)
+        if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath (Join-Path $callerRoot 'policy.json'))) {
+            throw "BraveDebloat.exe did not apply to a relative policy path. Output: $relativeApplyOutput"
+        }
+        $backups = @(Get-ChildItem -LiteralPath (Join-Path $callerRoot 'backups') -Filter 'BraveDebloater-*.json' -File)
+        if ($backups.Count -ne 1) {
+            throw 'BraveDebloat.exe did not write a backup into the relative backup directory.'
+        }
+        $relativeUndoOutput = (& $launcher -UndoFromBackup (Join-Path 'backups' $backups[0].Name) -PolicyPath 'policy.json' -Apply 2>&1 | Out-String -Width 4096)
+        if ($LASTEXITCODE -ne 0 -or (Get-Content -LiteralPath (Join-Path $callerRoot 'policy.json') -Raw) -match 'BraveRewardsDisabled') {
+            throw "BraveDebloat.exe did not restore from a relative backup path. Output: $relativeUndoOutput"
+        }
+    }
+    finally {
+        Pop-Location
+        Remove-Item -LiteralPath $callerRoot -Recurse -Force
+        if (Test-Path -LiteralPath $strayExport) {
+            Remove-Item -LiteralPath $strayExport -Force
+        }
     }
     # The undo hint printed through the launcher must still restore when pasted into cmd.exe.
     $undoRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('BraveDebloat Launcher {0}' -f [guid]::NewGuid().ToString('N'))

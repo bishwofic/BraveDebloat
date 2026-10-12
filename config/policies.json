@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "policyTemplateVersion": "155.1.99.2",
+  "policyTemplateVersion": "156.1.99.33",
   "sources": [
     "https://support.brave.app/hc/en-us/articles/360039248271-Group-Policy",
     "https://brave-browser-downloads.s3.brave.com/latest/policy_templates.zip"
@@ -22,7 +22,9 @@
   "deprecatedPolicies": [
     "PrivacySandboxPromptEnabled",
     "PromotionalTabsEnabled",
-    "IPFSEnabled"
+    "IPFSEnabled",
+    "AutofillCreditCardEnabled",
+    "AutofillAddressEnabled"
   ],
   "safety": {
     "blockedPolicyNames": [
@@ -89,8 +91,7 @@
       "ShoppingListEnabled",
       "QRCodeGeneratorEnabled",
       "PaymentMethodQueryEnabled",
-      "AutofillCreditCardEnabled",
-      "AutofillAddressEnabled",
+      "AutofillSettings",
       "TranslateEnabled",
       "LiveTranslateEnabled",
       "GoogleSearchSidePanelEnabled"
@@ -334,8 +335,7 @@
       "id": "Autofill",
       "label": "address and card autofill",
       "policies": [
-        "AutofillCreditCardEnabled",
-        "AutofillAddressEnabled"
+        "AutofillSettings"
       ],
       "reason": "Disable address and credit card autofill."
     },
@@ -558,17 +558,16 @@
       "category": "Privacy",
       "reason": "Prevent sites from querying stored payment method availability."
     },
-    "AutofillCreditCardEnabled": {
-      "type": "DWord",
-      "value": 0,
+    "AutofillSettings": {
+      "type": "Json",
+      "value": [
+        {
+          "url_pattern": "*",
+          "blocked_types": ["contact_info", "payments"]
+        }
+      ],
       "category": "Privacy",
-      "reason": "Disable credit card autofill."
-    },
-    "AutofillAddressEnabled": {
-      "type": "DWord",
-      "value": 0,
-      "category": "Privacy",
-      "reason": "Disable address autofill."
+      "reason": "Disable filling and saving contact information and payment methods on all sites."
     },
     "TranslateEnabled": {
       "type": "DWord",

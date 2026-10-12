@@ -333,6 +333,8 @@ Use `-OnlyFeature` when you want exactly the named cleanups without starting fro
 
 Feature names are shown by `-ListFeatures`. Examples include `Rewards`, `Wallet`, `VPN`, `LeoAI`, `News`, `Talk`, `EmailAliases`, `Autofill`, `Translate`, and `GoogleSearchSidePanel`.
 
+`Autofill` uses `AutofillSettings` to block filling and saving contact information and payment methods on all sites. Brave's current template deprecates `AutofillAddressEnabled` and `AutofillCreditCardEnabled`; apply backs up and removes those old values, and undo can restore them. If an older Brave build reports `AutofillSettings` as unknown, update Brave before applying this feature.
+
 When `-IncludeProfilePreferences` is combined with custom feature choices, profile preference patches are filtered to the selected features.
 
 ## Doctor Mode
@@ -340,6 +342,8 @@ When `-IncludeProfilePreferences` is combined with custom feature choices, profi
 Use `-Doctor` when you want to inspect Brave without changing anything.
 
 It checks policy locations, detected feature status, unknown Brave policies, protected policy names, Brave process state, profile preference files, and backups.
+
+On macOS, Doctor reads managed, obsolete, and explicitly blocked policy names individually. It does not enumerate other names, including policies covered only by a safety pattern. The report identifies this limit and marks policy read failures as an incomplete safety check. Open `brave://policy` to review the full list.
 
 This helps after testing other debloat tools. Machine-wide policies can make Brave settings appear managed for every Windows user, even when current-user policies look empty.
 

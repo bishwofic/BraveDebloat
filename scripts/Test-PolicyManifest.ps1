@@ -209,7 +209,7 @@ foreach ($presetName in $presets.Keys) {
 
 foreach ($policyName in $policies.Keys) {
     $policy = $policies[$policyName]
-    if (@('DWord', 'String') -notcontains [string]$policy.type) {
+    if (@('DWord', 'String', 'Json') -notcontains [string]$policy.type) {
         throw "Policy '$policyName' has unsupported type '$($policy.type)'."
     }
     if ([string]::IsNullOrWhiteSpace([string]$policy.reason)) {
@@ -224,6 +224,17 @@ foreach ($policyName in $policies.Keys) {
     if ($policy.type -eq 'DWord' -and ([long]$policy.value -lt 0 -or [long]$policy.value -gt [uint32]::MaxValue)) {
         throw "Policy '$policyName' has DWord value outside the registry range: $($policy.value)."
     }
+    if ($policy.type -eq 'Json' -and $policy.value -isnot [System.Collections.IList] -and $policy.value -isnot [System.Management.Automation.PSCustomObject]) {
+        throw "Policy '$policyName' is Json but does not contain an array or object."
+    }
+}
+
+$autofill = $policies['AutofillSettings']
+if ($null -eq $autofill -or $autofill.type -ne 'Json' -or $autofill.value -isnot [System.Collections.IList] -or $autofill.value.Count -ne 1 -or $autofill.value[0].url_pattern -cne '*' -or ($autofill.value[0].blocked_types -join ',') -cne 'contact_info,payments') {
+    throw 'AutofillSettings must block only contact_info and payments on all sites using a structured rule.'
+}
+foreach ($legacyAutofill in @('AutofillCreditCardEnabled', 'AutofillAddressEnabled')) {
+    if ($deprecatedPolicyNames -notcontains $legacyAutofill) { throw "Missing deprecated Autofill policy '$legacyAutofill' for backup compatibility." }
 }
 
 foreach ($policyName in @($platformSupport['iOS'])) {

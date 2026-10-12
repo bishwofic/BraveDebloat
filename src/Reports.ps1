@@ -11,7 +11,7 @@ function Show-PolicyList {
         $definition = $PolicyDefinitions[$name]
         [pscustomobject]@{
             Policy = $name
-            Value = $definition.value
+            Value = Get-RunReportValueText -Value $definition.value
             Category = $definition.category
             Reason = $definition.reason
         }
@@ -85,13 +85,19 @@ function Show-DoctorReport {
     Write-Step 'Doctor report (read-only). No policy, backup, or profile files will be changed.'
     Write-Step 'Use this report to see what Brave already has, then decide whether to run a preview or apply command.'
 
-    $knownPolicyNames = @($PolicyDefinitions.Keys)
+    # macOS targets can only be read one policy name at a time, so also ask for obsolete and protected
+    # names. Otherwise leftovers and Shields-disabling policies there would never be reported.
+    $probedPolicyNames = New-Object System.Collections.Generic.List[string]
+    foreach ($name in @($PolicyDefinitions.Keys) + @(Get-DeprecatedPolicyNames -Manifest $Manifest) + @($Manifest.safety.blockedPolicyNames)) {
+        Add-StringIfMissing -List $probedPolicyNames -Value ([string]$name)
+    }
     # -PolicyPath only affects file targets (Linux JSON, macOS machine plist). Passing it to both
     # scopes keeps Linux on a single report for the selected file instead of also scanning the default path.
     $currentUserTarget = Get-PolicyTarget -PlatformName $PlatformName -ScopeName 'CurrentUser' -OverridePath $PolicyPath -ReadOnly
     $localMachineTarget = Get-PolicyTarget -PlatformName $PlatformName -ScopeName 'LocalMachine' -OverridePath $PolicyPath -ReadOnly
-    $currentUserReport = Get-PolicyReport -Target $currentUserTarget -ScopeName 'CurrentUser' -PolicyNames $knownPolicyNames
-    $localMachineReport = Get-PolicyReport -Target $localMachineTarget -ScopeName 'LocalMachine' -PolicyNames $knownPolicyNames
+    $readsPoliciesByName = $currentUserTarget.Kind -in @('MacOSDefaults', 'MacOSPlist')
+    $currentUserReport = Get-PolicyReport -Target $currentUserTarget -ScopeName 'CurrentUser' -PolicyNames $probedPolicyNames.ToArray()
+    $localMachineReport = Get-PolicyReport -Target $localMachineTarget -ScopeName 'LocalMachine' -PolicyNames $probedPolicyNames.ToArray()
     $reports = @($currentUserReport, $localMachineReport)
     if ($currentUserTarget.Kind -ne 'Registry' -and $currentUserTarget.Path -eq $localMachineTarget.Path) {
         # Platforms like Linux expose a single machine-wide managed policy file, so both
@@ -134,8 +140,16 @@ function Show-DoctorReport {
         Write-Warning "Safety check incomplete: $($unreadableScopes.ToArray() -join ', ') policies could not be read."
     }
 
+    if ($readsPoliciesByName) {
+        Write-Step 'macOS scan: checked managed, obsolete, and explicitly blocked policy names. Other names, including pattern-only matches, were not checked. Open brave://policy for the full list.'
+    }
     if ($safetyFindings.Count -eq 0 -and $unreadableScopes.Count -eq 0) {
-        Write-Step 'Safety: no protected Brave policy names were detected.'
+        if ($readsPoliciesByName) {
+            Write-Step 'Safety: no explicitly blocked names were found among the policies checked.'
+        }
+        else {
+            Write-Step 'Safety: no protected Brave policy names were detected.'
+        }
     }
     elseif ($safetyFindings.Count -gt 0) {
         foreach ($finding in $safetyFindings) {
@@ -234,6 +248,9 @@ function Show-DoctorReport {
         Write-Step 'Unknown Brave policies: detected. These may have been set by Brave, another tool, or an organization.'
         $unknownRows.ToArray() | Format-Table -AutoSize -Wrap
     }
+    elseif ($readsPoliciesByName) {
+        Write-Step 'Unknown Brave policies: not fully checked. Open brave://policy to review policies outside the macOS scan.'
+    }
     else {
         Write-Step 'Unknown Brave policies: none detected.'
     }
@@ -260,8 +277,8 @@ function Get-RunReportValueText {
     if ($Value -is [bool]) {
         if ($Value) { return '1' } else { return '0' }
     }
-    if ($Value -is [System.Array]) {
-        return (@($Value | ForEach-Object { [string]$_ }) -join ', ')
+    if ($Value -is [System.Collections.IList] -or $Value -is [System.Management.Automation.PSCustomObject]) {
+        return (ConvertTo-Json -InputObject $Value -Depth 100 -Compress)
     }
     return [string]$Value
 }

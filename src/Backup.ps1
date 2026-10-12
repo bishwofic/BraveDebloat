@@ -135,10 +135,14 @@ function Assert-BackupPolicyList {
 
         if ($existed) {
             $kind = [string](Get-RequiredPropertyValue -Object $policy -Name 'kind' -Context "Backup policy '$name'")
-            if (@('DWord', 'String') -notcontains $kind) {
+            $policyKind = if ($Backup.PSObject.Properties['policyKind']) { [string]$Backup.policyKind } else { 'Registry' }
+            $expectedKind = if ($isDeprecated) { $kind } else { [string]$PolicyDefinitions[$name].type }
+            if ($expectedKind -eq 'Json' -and $policyKind -eq 'Registry') { $expectedKind = 'String' }
+            $structuredAllowed = -not $isDeprecated -and $expectedKind -eq 'Json' -and $policyKind -in @('JsonFile', 'MacOSDefaults', 'MacOSPlist')
+            if (@('DWord', 'String') -notcontains $kind -and -not ($kind -eq 'Json' -and $structuredAllowed)) {
                 throw "Backup policy '$name' has unsupported registry kind '$kind'."
             }
-            if (-not $isDeprecated -and $kind -ne [string]$PolicyDefinitions[$name].type) {
+            if (-not $isDeprecated -and $kind -ne $expectedKind) {
                 throw "Backup policy '$name' registry kind '$kind' does not match the manifest type '$($PolicyDefinitions[$name].type)'."
             }
 
@@ -148,6 +152,13 @@ function Assert-BackupPolicyList {
             }
             if ($kind -eq 'String' -and $value -isnot [string]) {
                 throw "Backup policy '$name' is String but has non-string value '$value'."
+            }
+            if ($kind -eq 'Json') {
+                if ($value -isnot [System.Collections.IList] -and $value -isnot [System.Management.Automation.PSCustomObject]) {
+                    throw "Backup policy '$name' is Json but does not contain an array or object."
+                }
+                Assert-JsonSerializationDepth -Value $value -Depth 100
+                if ($policyKind -in @('MacOSDefaults', 'MacOSPlist')) { ConvertTo-PlistScalar -Value $value | Out-Null }
             }
         }
     }
@@ -627,7 +638,8 @@ function Restore-RegistryBackup {
         }
         if (-not $DoApply) {
             if ($existed) {
-                Write-DryRun "Would restore $name to '$($policy.value)' ($($policy.kind))."
+                $valueText = if ($policy.kind -eq 'Json') { ConvertTo-Json -InputObject $policy.value -Depth 100 -Compress } else { [string]$policy.value }
+                Write-DryRun "Would restore $name to '$valueText' ($($policy.kind))."
             }
             else {
                 Write-DryRun "Would remove $name because it did not exist before."

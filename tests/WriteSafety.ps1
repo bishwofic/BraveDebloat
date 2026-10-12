@@ -202,4 +202,93 @@ foreach ($mode in @('Unmanaged', 'Automatic', 'Off')) {
     if ($listing -notlike '*Policy plan:*') { throw 'Policy listing omitted totals.' }
 }
 
+$definitions = Get-ManifestMap -Object $manifest.policies
+if (-not $definitions.ContainsKey('AutofillSettings')) { throw 'Autofill must use the supported AutofillSettings policy.' }
+$autofill = $definitions['AutofillSettings']
+$expectedAutofill = '[{"url_pattern":"*","blocked_types":["contact_info","payments"]}]'
+$autofillPayload = Get-PolicyPayload -PolicyNames AutofillSettings -PolicyDefinitions $definitions
+$reordered = ConvertFrom-JsonText -Json '{"rules":[{"blocked_types":["contact_info","payments"],"url_pattern":"*"}]}'
+foreach ($actual in @($expectedAutofill, $reordered.rules)) {
+    if (-not (Test-PolicyValueMatches -ActualValue $actual -ExpectedValue $autofill.value -Type Json)) { throw 'Structured policy comparison depends on encoding or object property order.' }
+}
+if (-not (Test-JsonValuesEqual -Left ([pscustomobject]@{}) -Right ([pscustomobject]@{}))) { throw 'Structured policy comparison rejected empty objects.' }
+if (Test-PolicyValueMatches -ActualValue '[{"url_pattern":"*","blocked_types":["payments"]}]' -ExpectedValue $autofill.value -Type Json) { throw 'Structured policy comparison ignored different values.' }
+if ((ConvertTo-Json -InputObject $autofillPayload.AutofillSettings -Compress -Depth 20) -cne $expectedAutofill) { throw 'AutofillSettings lost its array or blocked the wrong data types.' }
+$autofillReg = ConvertTo-RegFileDocument -RegistryPath (Get-RegistryPolicyPath -ScopeName CurrentUser) -Payload $autofillPayload
+if (-not $autofillReg.Contains(('"AutofillSettings"="' + $expectedAutofill.Replace('"', '\"') + '"'))) { throw 'Registry export did not serialize AutofillSettings as a JSON string.' }
+foreach ($mobileConfig in @($false, $true)) {
+    [xml]$plist = ConvertTo-PlistDocument -Payload $autofillPayload -MobileConfig:$mobileConfig
+    $rules = $plist.SelectSingleNode('//key[text()="AutofillSettings"]/following-sibling::*[1]')
+    if ($rules.Name -ne 'array' -or $rules.SelectNodes('dict').Count -ne 1) { throw 'Plist export did not encode AutofillSettings as an array of dictionaries.' }
+    if ($rules.SelectSingleNode('dict/key[text()="url_pattern"]/following-sibling::*[1]').InnerText -cne '*') { throw 'Plist export lost the Autofill URL pattern.' }
+    if (($rules.SelectNodes('dict/key[text()="blocked_types"]/following-sibling::*[1]/string') | ForEach-Object { $_.InnerText }) -join ',' -cne 'contact_info,payments') { throw 'Plist export lost the blocked Autofill types.' }
+}
+
+function Test-AutofillRegistryWriter {
+    function Test-Path { param($LiteralPath) return $true }
+    function New-ItemProperty {
+        param($LiteralPath, $Name, $Value, $PropertyType, [switch]$Force)
+        if ($Name -ne 'AutofillSettings' -or $PropertyType -ne 'String' -or $Value -cne $expectedAutofill) { throw 'Registry writer did not store AutofillSettings as REG_SZ JSON.' }
+    }
+    Set-BravePolicy -BasePath (Get-RegistryPolicyPath -ScopeName CurrentUser) -Name AutofillSettings -Definition $autofill
+}
+Test-AutofillRegistryWriter
+
+$autofillRoot = Join-Path $TempRoot 'Autofill'
+New-DirectoryLiteral -Path $autofillRoot
+$autofillPath = Join-Path $autofillRoot 'policy.json'
+foreach ($priorRules in @('[]', '[{"url_pattern":"https://example.com","blocked_types":["payments"]}]', '[{"url_pattern":"*","blocked_types":["identity_docs"]},{"url_pattern":"https://example.com","blocked_types":["travel"]}]')) {
+    $before = '{"AutofillSettings":' + $priorRules + ',"AutofillCreditCardEnabled":true,"AutofillAddressEnabled":false,"Unrelated":"keep"}'
+    Set-TextFileContent -Path $autofillPath -Content $before
+    $autofillBackups = Join-Path $autofillRoot ([guid]::NewGuid().ToString('N'))
+    $preview = & $scriptPath -Platform Linux -OnlyFeature Autofill -PolicyPath $autofillPath -BackupDirectory $autofillBackups *>&1 | Out-String
+    if ($preview -notlike '*Would set AutofillSettings*' -or $preview -notlike '*Would remove AutofillCreditCardEnabled*' -or $preview -notlike '*Would remove AutofillAddressEnabled*') { throw 'Autofill migration preview omitted a policy change.' }
+    if ((Get-Utf8FileContent -Path $autofillPath) -cne $before -or (Test-Path -LiteralPath $autofillBackups)) { throw 'Autofill preview wrote files.' }
+    & $scriptPath -Platform Linux -OnlyFeature Autofill -PolicyPath $autofillPath -BackupDirectory $autofillBackups -Apply -Confirm:$false *> $null
+    $applied = Get-JsonFileContent -Path $autofillPath
+    if ((ConvertTo-Json -InputObject $applied.AutofillSettings -Compress -Depth 20) -cne $expectedAutofill -or $applied.Unrelated -cne 'keep') { throw 'Autofill migration wrote the wrong structured policy or changed unrelated data.' }
+    if ($applied.PSObject.Properties['AutofillCreditCardEnabled'] -or $applied.PSObject.Properties['AutofillAddressEnabled']) { throw 'Autofill migration kept deprecated policies.' }
+    $backupFile = @(Get-ChildItem -LiteralPath $autofillBackups -Filter 'BraveDebloater-*.json')[0].FullName
+    $backup = Get-JsonFileContent -Path $backupFile
+    $savedAutofill = @($backup.policies | Where-Object { $_.name -eq 'AutofillSettings' })[0]
+    if ($savedAutofill.kind -ne 'Json' -or (ConvertTo-Json -InputObject $savedAutofill.value -Compress -Depth 20) -cne $priorRules) { throw 'Backup did not preserve the original structured Autofill policy.' }
+    Restore-RegistryBackup -BackupPath $backupFile -Manifest $manifest -AllowedPolicyPath $autofillPath -DoApply *> $null
+    $restored = Get-JsonFileContent -Path $autofillPath
+    if ((ConvertTo-Json -InputObject $restored.AutofillSettings -Compress -Depth 20) -cne $priorRules -or $restored.AutofillCreditCardEnabled -ne $true -or $restored.AutofillAddressEnabled -ne $false -or $restored.Unrelated -cne 'keep') { throw 'Autofill undo did not restore both structured and deprecated policies.' }
+}
+
+foreach ($case in @(
+    @{ Target = 'Registry'; Name = 'AutofillSettings'; Kind = 'String'; Value = $expectedAutofill; Valid = $true },
+    @{ Target = 'Registry'; Name = 'AutofillSettings'; Kind = 'Json'; Value = $autofill.value; Valid = $false },
+    @{ Target = 'JsonFile'; Name = 'AutofillSettings'; Kind = 'String'; Value = $expectedAutofill; Valid = $false },
+    @{ Target = 'JsonFile'; Name = 'BraveRewardsDisabled'; Kind = 'Json'; Value = $autofill.value; Valid = $false },
+    @{ Target = 'JsonFile'; Name = 'AutofillSettings'; Kind = 'Json'; Value = 1; Valid = $false },
+    @{ Target = 'Registry'; Name = 'AutofillCreditCardEnabled'; Kind = 'DWord'; Value = 0; Valid = $true },
+    @{ Target = 'Registry'; Name = 'AutofillAddressEnabled'; Kind = 'DWord'; Value = 0; Valid = $true }
+)) {
+    $candidate = [pscustomobject]@{ policyKind = $case.Target; policies = @([pscustomobject]@{ name = $case.Name; existed = $true; kind = $case.Kind; value = $case.Value }) }
+    $accepted = $true
+    try { Assert-BackupPolicyList -Backup $candidate -PolicyDefinitions $definitions -DeprecatedPolicyNames @(Get-DeprecatedPolicyNames -Manifest $manifest) }
+    catch { $accepted = $false }
+    if ($accepted -ne $case.Valid) { throw "Incorrect structured backup validation for $($case.Target)/$($case.Name)/$($case.Kind)." }
+}
+
+if ((Resolve-PlatformName -Name Auto) -eq 'macOS') {
+    $macTarget = [pscustomobject]@{ Platform = 'macOS'; Kind = 'MacOSPlist'; Path = (Join-Path $autofillRoot 'native.plist') }
+    Set-PolicyValue -Target $macTarget -Name DnsOverHttpsMode -Definition ([pscustomobject]@{ type = 'String'; value = 'automatic' })
+    foreach ($priorRules in @('[]', '[{"url_pattern":"https://example.com","blocked_types":["payments"]}]')) {
+        $prior = ConvertFrom-JsonText -Json ('{"rules":' + $priorRules + '}')
+        Set-PolicyValue -Target $macTarget -Name AutofillSettings -Definition ([pscustomobject]@{ type = 'Json'; value = $prior.rules })
+        $macBackup = New-Backup -Directory (Join-Path $autofillRoot 'mac-backups') -ScopeName LocalMachine -Target $macTarget -PolicyNames AutofillSettings -Manifest $manifest
+        Set-PolicyValue -Target $macTarget -Name AutofillSettings -Definition $autofill
+        $value = Get-PolicyValue -Target $macTarget -Name AutofillSettings
+        if ($value.ReadError -or $value.Kind -ne 'Json' -or $value.Value -isnot [System.Collections.IList] -or $value.Value.Count -ne 1 -or $value.Value[0].url_pattern -cne '*' -or ($value.Value[0].blocked_types -join ',') -cne 'contact_info,payments') { throw 'Native macOS Autofill policy did not round-trip as a structured array.' }
+        Restore-RegistryBackup -BackupPath $macBackup -Manifest $manifest -AllowedPolicyPath $macTarget.Path -DoApply *> $null
+        $restored = Get-PolicyValue -Target $macTarget -Name AutofillSettings
+        if ($restored.ReadError -or $restored.Value -isnot [System.Collections.IList] -or $restored.Value.Count -ne $prior.rules.Count) { throw 'Native macOS Autofill restore changed the array shape.' }
+        if ($restored.Value.Count -gt 0 -and ($restored.Value[0].url_pattern -cne 'https://example.com' -or ($restored.Value[0].blocked_types -join ',') -cne 'payments')) { throw 'Native macOS Autofill restore changed the saved rule.' }
+        if ((Get-PolicyValue -Target $macTarget -Name DnsOverHttpsMode).Value -cne 'automatic') { throw 'Native macOS Autofill write changed an unrelated policy.' }
+    }
+}
+
 Write-Host 'Write safety checks passed.'

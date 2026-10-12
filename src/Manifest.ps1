@@ -190,7 +190,12 @@ function Read-FeatureChoice {
     $defaultLabel = if ($Default) { 'Y/n' } else { 'y/N' }
     $prompt = "Apply $($Feature.label) cleanup? [$defaultLabel]"
     while ($true) {
-        $answer = (Read-Host $prompt).Trim()
+        $answer = Read-Host $prompt
+        if ($null -eq $answer) {
+            # Read-Host returns $null once redirected input runs out (scheduled tasks, CI, piped runs).
+            throw '-Customize needs an answer for each feature, but no input was available. Run it in an interactive PowerShell window, or use -OnlyFeature, -IncludeFeature, or -ExcludeFeature in scripts. No changes were made.'
+        }
+        $answer = $answer.Trim()
         if ([string]::IsNullOrWhiteSpace($answer)) {
             return $Default
         }
