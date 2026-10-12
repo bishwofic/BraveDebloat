@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.8.0 - 2026-10-12
+
 - `BraveDebloat.exe` now resolves relative paths against the folder you run it from. Previously it ran the script inside its own folder, so `BraveDebloat -ExportPolicyPath .\brave.reg` (or a relative `-PolicyPath`, `-ProfileRoot`, `-BackupDirectory`, or `-UndoFromBackup`) used the launcher's folder, which for winget is a package folder that upgrades replace.
 - `-Doctor` on macOS now checks obsolete and explicitly blocked policy names, including `IPFSEnabled` and `BraveShieldsDisabledForUrls`. It identifies read failures as an incomplete safety check and explains the scan's limits even when it finds a protected policy. Open `brave://policy` for names outside that scan, including pattern-only safety matches.
 - `-Customize` now stops with a clear message when no answer can be read (redirected or closed input, for example in a scheduled task or CI), instead of failing with "You cannot call a method on a null-valued expression."
