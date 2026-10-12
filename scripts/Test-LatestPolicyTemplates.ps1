@@ -106,6 +106,13 @@ function Assert-AdmxValueType {
     $decimalElements = @($Node.SelectNodes('elements/decimal'))
     $textElements = @($Node.SelectNodes('elements/text'))
 
+    if ($type -eq 'Json') {
+        if ($textElements.Count -eq 0 -or ($Policy.value -isnot [System.Collections.IList] -and $Policy.value -isnot [System.Management.Automation.PSCustomObject])) {
+            throw "Manifest policy '$PolicyName' must contain structured JSON stored in an ADMX text element."
+        }
+        return
+    }
+
     if ($type -eq 'String') {
         $enumStrings = @($Node.SelectNodes('elements/enum/item/value/string') | ForEach-Object { [string]$_.InnerText })
         if ($textElements.Count -eq 0 -and $enumStrings.Count -eq 0) {

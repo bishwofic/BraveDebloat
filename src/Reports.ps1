@@ -11,7 +11,7 @@ function Show-PolicyList {
         $definition = $PolicyDefinitions[$name]
         [pscustomobject]@{
             Policy = $name
-            Value = $definition.value
+            Value = Get-RunReportValueText -Value $definition.value
             Category = $definition.category
             Reason = $definition.reason
         }
@@ -277,8 +277,8 @@ function Get-RunReportValueText {
     if ($Value -is [bool]) {
         if ($Value) { return '1' } else { return '0' }
     }
-    if ($Value -is [System.Array]) {
-        return (@($Value | ForEach-Object { [string]$_ }) -join ', ')
+    if ($Value -is [System.Collections.IList] -or $Value -is [System.Management.Automation.PSCustomObject]) {
+        return (ConvertTo-Json -InputObject $Value -Depth 100 -Compress)
     }
     return [string]$Value
 }

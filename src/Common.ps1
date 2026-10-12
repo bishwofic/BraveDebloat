@@ -108,7 +108,7 @@ function Get-RequiredPropertyValue {
         throw "$Context is missing required property '$Name'."
     }
 
-    return $property.Value
+    return ,$property.Value
 }
 
 function Get-Utf8FileContent {

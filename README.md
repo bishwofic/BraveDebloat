@@ -333,6 +333,8 @@ Use `-OnlyFeature` when you want exactly the named cleanups without starting fro
 
 Feature names are shown by `-ListFeatures`. Examples include `Rewards`, `Wallet`, `VPN`, `LeoAI`, `News`, `Talk`, `EmailAliases`, `Autofill`, `Translate`, and `GoogleSearchSidePanel`.
 
+`Autofill` uses `AutofillSettings` to block filling and saving contact information and payment methods on all sites. Brave's current template deprecates `AutofillAddressEnabled` and `AutofillCreditCardEnabled`; apply backs up and removes those old values, and undo can restore them. If an older Brave build reports `AutofillSettings` as unknown, update Brave before applying this feature.
+
 When `-IncludeProfilePreferences` is combined with custom feature choices, profile preference patches are filtered to the selected features.
 
 ## Doctor Mode

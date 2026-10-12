@@ -11,15 +11,23 @@ Official sources used for this pass:
 
 Downloaded template evidence:
 
-- Template version: `155.1.99.2`
-- Archive timestamp: September 10, 2026
-- Checked files: `VERSION` and `windows/admx/brave.admx`
+- Template version: `156.1.99.33`
+- Archive `VERSION` entry timestamp: October 12, 2026
+- Checked files: `VERSION`, `windows/admx/brave.admx`, and `windows/admx/en-US/brave.adml`
 
 Targeted Reddit, Brave Community, and GitHub searches did not produce a newer or more authoritative debloatable-policy source than Brave's Help Center and template zip.
 
 ## What Changed
 
-The manifest version in `config/policies.json` changed from `153.1.96.44` to `155.1.99.2`. No manifest policy was added, removed, or retyped in that template update; every active policy still exists in the ADMX with the same boolean or enum shape.
+The manifest version in `config/policies.json` changed from `155.1.99.2` to `156.1.99.33`. The new template deprecates `AutofillCreditCardEnabled` and `AutofillAddressEnabled`. The `Autofill` feature and Extreme/Aggressive presets now use `AutofillSettings` with this rule:
+
+```json
+[{"url_pattern":"*","blocked_types":["contact_info","payments"]}]
+```
+
+The ADML documents `*` as matching all URLs and `contact_info`/`payments` as blocking both filling and saving those data types. This preserves the address/card cleanup without also blocking identity documents, travel, or shopping data. The ADMX stores the rule as JSON text in a registry `REG_SZ`; Linux and Android exports use a native JSON array, and macOS uses a plist array of dictionaries. The manifest type `Json` selects these platform-specific representations.
+
+The snapshot also records the newly added `AutofillGenAiSettings` and `LaunchOnStartupEnabled` policies. Neither is added to a preset in this update.
 
 These official-template policies were added in the `153.1.96.44` pass because they match BraveDebloater's scope:
 
@@ -30,7 +38,9 @@ These official-template policies back the opt-in `-DnsOverHttps` add-on and are 
 - `DnsOverHttpsMode`: a string enum in the ADMX (`off`, `automatic`, `secure`). The manifest `dnsControl.modes` map is checked against that enum.
 - `DnsOverHttpsTemplates`: a `text` policy holding one or more `https://` DoH URI templates separated by spaces. `Secure` requires it; `Off`, `Automatic` without templates, and `Unmanaged` remove a leftover copy so an old custom resolver does not keep applying.
 
-The manifest's `deprecatedPolicies` list records names that must stay out of active presets. The current template still lists `PrivacySandboxPromptEnabled`, `PromotionalTabsEnabled`, and `IPFSEnabled`, but places them under the `DeprecatedPolicies` category. They stay out of the active manifest; `PromotionsEnabled = 0` is retained as the supported policy for promotional content. Apply and dry-run remove leftover copies of those names from the selected Brave policy target so older installs do not keep showing them as obsolete in `brave://policy`.
+The manifest's `deprecatedPolicies` list records names that must stay out of active presets. The current template places `PrivacySandboxPromptEnabled`, `PromotionalTabsEnabled`, `IPFSEnabled`, `AutofillCreditCardEnabled`, and `AutofillAddressEnabled` under `DeprecatedPolicies`. `PromotionsEnabled = 0` remains the supported policy for promotional content. Dry-run lists leftover values for removal; apply backs them up and removes them from the selected policy target. Restore still accepts the old Autofill policy names, so both earlier backups and backups from the migration can restore their original values.
+
+Structured backup values are accepted only for manifest policies of type `Json` and only for JSON/plist targets. Windows backups keep the exact original registry string. Empty, single-entry, and multi-entry JSON arrays must retain their shape through apply and undo.
 
 These official-template policies were checked and left out:
 
@@ -65,6 +75,7 @@ It checks that:
 - every manifest policy exists in `windows/admx/brave.admx` and is not under `DeprecatedPolicies`;
 - every manifest `DWord` value fits the ADMX definition: `0`/`1` only for boolean policies (`enabledValue`/`disabledValue`), and other values only when listed as an `enum` item or inside the `minValue`/`maxValue` range of a `decimal` element. This matters because the Linux JSON and macOS plist writers emit `0`/`1` as booleans, which Brave rejects for integer policies;
 - every manifest `String` policy is a `text` element in the ADMX, or a string `enum` that lists the manifest value;
+- every manifest `Json` policy contains an array or object and has an ADMX text element for its serialized registry value; the local manifest check also verifies the exact Autofill rule;
 - every `dnsControl` mode value is listed by the ADMX enum for `dnsControl.modePolicy`, and `dnsControl.templatesPolicy` exists in the template;
 - every `deprecatedPolicies` name is absent from the ADMX template, or still present only under `DeprecatedPolicies` / `deprecated="true"`;
 - every iOS allow-listed policy is defined in the manifest.

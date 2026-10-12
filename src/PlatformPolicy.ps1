@@ -202,12 +202,15 @@ function Get-ManagedPolicyValueKind {
     param($Value)
 
     # Managed JSON and plist values have no registry kind, so derive the closest match from the
-    # value type. Anything else (arrays, objects, fractions) cannot be restored as a Brave policy value.
+    # value type. Structured values use a separate kind restricted to Json policies by restore validation.
     if ($Value -is [bool] -or $Value -is [int] -or $Value -is [long] -or $Value -is [int16] -or $Value -is [byte]) {
         return 'DWord'
     }
     if ($Value -is [string]) {
         return 'String'
+    }
+    if ($Value -is [System.Collections.IList] -or $Value -is [System.Management.Automation.PSCustomObject]) {
+        return 'Json'
     }
     return 'Unsupported'
 }
@@ -321,6 +324,15 @@ function Get-PolicyValue {
                 # `defaults read` prints booleans as 1/0. Ask for the stored type so the snapshot
                 # keeps booleans as booleans and a restore writes them back with -bool.
                 $typeOutput = @(& /usr/bin/defaults read-type $domain $Name 2>$null)
+                if (($typeOutput -join ' ') -match '(?i)array|dictionary') {
+                    $plistText = @(& /usr/bin/defaults export $domain - 2>$null)
+                    if ($LASTEXITCODE -ne 0) { throw "Could not export macOS policy domain '$domain' for reading." }
+                    $jsonText = @($plistText | & /usr/bin/plutil -extract $Name json -o - -- -)
+                    if ($LASTEXITCODE -ne 0) { throw "Could not decode structured macOS policy '$Name'." }
+                    $parsed = ConvertFrom-JsonText -Json ('{"value":' + ($jsonText -join "`n") + '}')
+                    $value = $parsed.value
+                    return [pscustomobject]@{ Exists = $true; Value = $value; Kind = 'Json'; ReadError = $false }
+                }
             }
         }
         catch {
@@ -436,7 +448,7 @@ function Get-PolicyStateNote {
         return [pscustomobject]@{ Text = ' Already set, no change.'; AlreadySet = $true }
     }
 
-    $currentText = if ($current.Value -is [bool]) { if ($current.Value) { '1' } else { '0' } } else { [string]$current.Value }
+    $currentText = if ($Definition.type -eq 'Json' -and $current.Value -isnot [string]) { ConvertTo-Json -InputObject $current.Value -Depth 100 -Compress } elseif ($current.Value -is [bool]) { if ($current.Value) { '1' } else { '0' } } else { [string]$current.Value }
     return [pscustomobject]@{ Text = " Currently $currentText."; AlreadySet = $false }
 }
 
@@ -499,7 +511,12 @@ function Set-PolicyValue {
         if ($Target.Kind -eq 'MacOSPlist') {
             New-DirectoryLiteral -Path (Split-Path -Parent $Target.Path)
         }
-        & /usr/bin/defaults write $domain $Name $typeFlag $value
+        if ($Definition.type -eq 'Json') {
+            & /usr/bin/defaults write $domain $Name (ConvertTo-PlistScalar -Value $value)
+        }
+        else {
+            & /usr/bin/defaults write $domain $Name $typeFlag $value
+        }
         if ($LASTEXITCODE -ne 0) {
             throw "Could not write macOS policy '$Name' to $($Target.Path). Check file permissions, then rerun with -Apply."
         }
@@ -648,6 +665,28 @@ function Get-PolicyEntryMap {
     return $map
 }
 
+function Test-JsonValuesEqual {
+    param($Left, $Right)
+
+    if ($Left -is [System.Management.Automation.PSCustomObject] -and $Right -is [System.Management.Automation.PSCustomObject]) {
+        $leftNames = @($Left.PSObject.Properties | ForEach-Object { $_.Name })
+        $rightNames = @($Right.PSObject.Properties | ForEach-Object { $_.Name })
+        if ($leftNames.Count -ne $rightNames.Count) { return $false }
+        foreach ($name in $leftNames) {
+            if ($rightNames -cnotcontains $name -or -not (Test-JsonValuesEqual -Left $Left.PSObject.Properties[$name].Value -Right $Right.PSObject.Properties[$name].Value)) { return $false }
+        }
+        return $true
+    }
+    if ($Left -is [System.Collections.IList] -and $Right -is [System.Collections.IList]) {
+        if ($Left.Count -ne $Right.Count) { return $false }
+        for ($i = 0; $i -lt $Left.Count; $i++) {
+            if (-not (Test-JsonValuesEqual -Left $Left[$i] -Right $Right[$i])) { return $false }
+        }
+        return $true
+    }
+    return ((ConvertTo-Json -InputObject $Left -Depth 100 -Compress) -ceq (ConvertTo-Json -InputObject $Right -Depth 100 -Compress))
+}
+
 function Test-PolicyValueMatches {
     param(
         $ActualValue,
@@ -662,6 +701,13 @@ function Test-PolicyValueMatches {
         if ($Type -eq 'String') {
             return ([string]$ActualValue -eq [string]$ExpectedValue)
         }
+        if ($Type -eq 'Json') {
+            if ($ActualValue -is [string]) {
+                $parsed = ConvertFrom-JsonText -Json ('{"value":' + $ActualValue + '}')
+                $ActualValue = $parsed.value
+            }
+            return (Test-JsonValuesEqual -Left $ActualValue -Right $ExpectedValue)
+        }
     }
     catch {
         return $false
@@ -673,6 +719,9 @@ function Test-PolicyValueMatches {
 function ConvertTo-ManagedPolicyValue {
     param([Parameter(Mandatory = $true)]$Definition)
 
+    if ($Definition.type -eq 'Json') {
+        return ,$Definition.value
+    }
     if ($Definition.type -eq 'DWord') {
         # Restores carry the value exactly as it was recorded (JSON true/false or a number), so an
         # integer policy such as NetworkPredictionOptions = 0 is not turned back into `false`.
@@ -749,8 +798,18 @@ function Get-PolicyPayload {
 }
 
 function ConvertTo-PlistScalar {
-    param([Parameter(Mandatory = $true)]$Value)
+    param([Parameter(Mandatory = $true)][AllowEmptyCollection()]$Value)
 
+    if ($Value -is [System.Collections.IList]) {
+        $items = @($Value | ForEach-Object { ConvertTo-PlistScalar -Value $_ })
+        return '<array>' + ($items -join '') + '</array>'
+    }
+    if ($Value -is [System.Management.Automation.PSCustomObject]) {
+        $entries = @($Value.PSObject.Properties | ForEach-Object {
+            '<key>' + [System.Security.SecurityElement]::Escape($_.Name) + '</key>' + (ConvertTo-PlistScalar -Value $_.Value)
+        })
+        return '<dict>' + ($entries -join '') + '</dict>'
+    }
     if ($Value -is [bool]) {
         if ($Value) { return '<true/>' }
         return '<false/>'
@@ -759,6 +818,10 @@ function ConvertTo-PlistScalar {
         return "<integer>$Value</integer>"
     }
 
+    if ($Value -is [double] -or $Value -is [decimal]) {
+        return '<real>' + $Value.ToString([System.Globalization.CultureInfo]::InvariantCulture) + '</real>'
+    }
+    if ($Value -isnot [string]) { throw 'Unsupported value in structured plist policy.' }
     $escaped = [System.Security.SecurityElement]::Escape([string]$Value)
     return "<string>$escaped</string>"
 }
@@ -857,6 +920,9 @@ function ConvertTo-RegFileDocument {
 
     foreach ($entry in $Payload.GetEnumerator()) {
         $value = $entry.Value
+        if ($value -is [System.Collections.IList] -or $value -is [System.Management.Automation.PSCustomObject]) {
+            $value = ConvertTo-Json -InputObject $value -Depth 100 -Compress
+        }
         if ($value -is [bool]) {
             $value = if ($value) { 1 } else { 0 }
         }
@@ -948,12 +1014,17 @@ function Set-BravePolicy {
     $propertyType = switch ($Definition.type) {
         'DWord' { 'DWord' }
         'String' { 'String' }
+        'Json' { 'String' }
         default { throw "Unsupported registry type '$($Definition.type)' for policy '$Name'." }
     }
 
     $value = $Definition.value
     if ($Definition.type -eq 'DWord') {
         $value = [int]$value
+    }
+    elseif ($Definition.type -eq 'Json') {
+        Assert-JsonSerializationDepth -Value $value -Depth 100
+        $value = ConvertTo-Json -InputObject $value -Depth 100 -Compress
     }
 
     New-ItemProperty -LiteralPath $BasePath -Name $Name -Value $value -PropertyType $propertyType -Force | Out-Null
