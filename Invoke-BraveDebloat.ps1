@@ -71,7 +71,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$ToolVersion = '0.7.0'
+$ToolVersion = '0.8.0'
 
 $ProjectRoot = if ([string]::IsNullOrWhiteSpace($PSScriptRoot)) {
     Split-Path -Parent $MyInvocation.MyCommand.Path
