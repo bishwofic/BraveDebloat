@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- `-Doctor` reports DNS-over-HTTPS state from the selected target: `DNS over HTTPS: <mode> (<resolver>)`, or `not managed` when `DnsOverHttpsMode` and `DnsOverHttpsTemplates` are absent.
+
 ## 0.8.0 - 2026-10-12
 
 - `BraveDebloat.exe` now resolves relative paths against the folder you run it from. Previously it ran the script inside its own folder, so `BraveDebloat -ExportPolicyPath .\brave.reg` (or a relative `-PolicyPath`, `-ProfileRoot`, `-BackupDirectory`, or `-UndoFromBackup`) used the launcher's folder, which for winget is a package folder that upgrades replace.
