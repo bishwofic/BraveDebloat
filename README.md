@@ -130,10 +130,10 @@ Manual install: download `BraveDebloater-vX.Y.Z.zip` from the Releases page, the
 Get-FileHash .\BraveDebloater-vX.Y.Z.zip -Algorithm SHA256
 ```
 
-Releases after 0.8.0 also carry a signed build provenance (`BraveDebloater-vX.Y.Z.sigstore.json`). With the [GitHub CLI](https://cli.github.com), confirm that this repository's release workflow built the archive:
+Releases after 0.8.0 also carry a signed build provenance (`BraveDebloater-vX.Y.Z.sigstore.json`). With the [GitHub CLI](https://cli.github.com), confirm that this repository's release workflow built the archive from the `vX.Y.Z` tag:
 
 ```powershell
-gh attestation verify .\BraveDebloater-vX.Y.Z.zip --repo osfv/BraveDebloater
+gh attestation verify .\BraveDebloater-vX.Y.Z.zip --repo osfv/BraveDebloater --source-ref refs/tags/vX.Y.Z --signer-workflow osfv/BraveDebloater/.github/workflows/release.yml
 ```
 
 Open PowerShell in the extracted folder and run the default dry-run:

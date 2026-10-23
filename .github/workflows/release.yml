@@ -230,7 +230,7 @@ jobs:
             'Confirm that this repository''s release workflow built the archive from this tag (needs the [GitHub CLI](https://cli.github.com)):'
             ''
             '```powershell'
-            "gh attestation verify .\BraveDebloater-$tag.zip --repo ${env:GITHUB_REPOSITORY}"
+            "gh attestation verify .\BraveDebloater-$tag.zip --repo ${env:GITHUB_REPOSITORY} --source-ref refs/tags/$tag --signer-workflow ${env:GITHUB_REPOSITORY}/.github/workflows/release.yml"
             '```'
             ''
             $compare
