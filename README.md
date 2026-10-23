@@ -113,7 +113,7 @@ irm https://raw.githubusercontent.com/osfv/BraveDebloater/main/install.ps1 | iex
 It downloads the latest release zip and `SHA256SUMS.txt`, refuses to continue if the hash does not match, extracts to `%LOCALAPPDATA%\Programs\BraveDebloater` (Windows) or `~/.local/share/BraveDebloater`, and prints the preview command. Running it again upgrades in place and keeps `backups/`. It does not touch Brave. To pick a version or folder:
 
 ```powershell
-& ([scriptblock]::Create((irm https://raw.githubusercontent.com/osfv/BraveDebloater/main/install.ps1))) -Version 0.8.0 -Destination C:\Tools\BraveDebloater
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/osfv/BraveDebloater/main/install.ps1))) -Version 0.9.0 -Destination C:\Tools\BraveDebloater
 ```
 
 Scoop users can install straight from this repository, with a `bravedebloat` shim and `backups/` persisted across upgrades:
@@ -130,7 +130,7 @@ Manual install: download `BraveDebloater-vX.Y.Z.zip` from the Releases page, the
 Get-FileHash .\BraveDebloater-vX.Y.Z.zip -Algorithm SHA256
 ```
 
-Releases after 0.8.0 also carry a signed build provenance (`BraveDebloater-vX.Y.Z.sigstore.json`). With the [GitHub CLI](https://cli.github.com), confirm that this repository's release workflow built the archive from the `vX.Y.Z` tag:
+Releases from 0.9.0 carry a signed build provenance (`BraveDebloater-vX.Y.Z.sigstore.json`). With the [GitHub CLI](https://cli.github.com), confirm that this repository's release workflow built the archive from the `vX.Y.Z` tag:
 
 ```powershell
 gh attestation verify .\BraveDebloater-vX.Y.Z.zip --repo osfv/BraveDebloater --source-ref refs/tags/vX.Y.Z --signer-workflow osfv/BraveDebloater/.github/workflows/release.yml

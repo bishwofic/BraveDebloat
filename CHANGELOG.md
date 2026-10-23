@@ -2,11 +2,12 @@
 
 ## Unreleased
 
+## 0.9.0 - 2026-10-23
+
+- `-Doctor` reports DNS-over-HTTPS state from the selected target: `DNS over HTTPS: <mode> (<resolver>)`, or `not managed` when `DnsOverHttpsMode` and `DnsOverHttpsTemplates` are absent.
 - Releases now include `BraveDebloater-vX.Y.Z.sigstore.json`, a signed SLSA build provenance for both archives. The README's manual install section shows the `gh attestation verify` command that ties an archive to its tag and the release workflow.
 - Added OpenSSF Scorecard, CodeQL scanning of the GitHub Actions workflows, and weekly Dependabot updates for pinned actions. The weekly policy template workflow now grants write access only to the job that opens its pull request.
 - `SECURITY.md` names the private reporting channels: GitHub private vulnerability reporting or email.
-
-- `-Doctor` reports DNS-over-HTTPS state from the selected target: `DNS over HTTPS: <mode> (<resolver>)`, or `not managed` when `DnsOverHttpsMode` and `DnsOverHttpsTemplates` are absent.
 
 ## 0.8.0 - 2026-10-12
 
