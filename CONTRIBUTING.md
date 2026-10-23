@@ -24,6 +24,8 @@ Do not submit agent output that only patches the visible symptom. Trace the shar
 
 ## Checks
 
+New behavior needs a test in the same pull request: a Pester test in `tests/` or a case in `scripts/Test-Behavior.ps1`. Bug fixes should add a test that fails without the fix.
+
 Before opening a pull request, run:
 
 ```powershell

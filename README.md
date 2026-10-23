@@ -130,6 +130,12 @@ Manual install: download `BraveDebloater-vX.Y.Z.zip` from the Releases page, the
 Get-FileHash .\BraveDebloater-vX.Y.Z.zip -Algorithm SHA256
 ```
 
+Releases after 0.8.0 also carry a signed build provenance (`BraveDebloater-vX.Y.Z.sigstore.json`). With the [GitHub CLI](https://cli.github.com), confirm that this repository's release workflow built the archive from the `vX.Y.Z` tag:
+
+```powershell
+gh attestation verify .\BraveDebloater-vX.Y.Z.zip --repo osfv/BraveDebloater --source-ref refs/tags/vX.Y.Z --signer-workflow osfv/BraveDebloater/.github/workflows/release.yml
+```
+
 Open PowerShell in the extracted folder and run the default dry-run:
 
 ```powershell
@@ -410,7 +416,7 @@ See `ROADMAP.md` for planned safety, testing, release trust, user experience, an
 
 ## Releasing
 
-Pushing a `vX.Y.Z` tag runs `.github/workflows/release.yml`. It reruns the project checks on Windows, Ubuntu, macOS, and Windows PowerShell 5.1 against the tagged commit and compiles `BraveDebloat.exe` from `packaging/launcher/BraveDebloat.cs`, and only then confirms the tag matches `$ToolVersion` in `Invoke-BraveDebloat.ps1` and has a `## X.Y.Z - <date>` section in `CHANGELOG.md`, builds `BraveDebloater-vX.Y.Z.zip` from the tagged tree and `BraveDebloater-vX.Y.Z-windows.zip` (same tree, flattened, plus the launcher), writes `SHA256SUMS.txt`, and publishes the GitHub release with that changelog section as the notes. It also stores ready-to-submit winget and Scoop manifests in the run's `package-manifests` artifact, and opens the winget-pkgs pull request when a `WINGET_TOKEN` secret exists.
+Pushing a `vX.Y.Z` tag runs `.github/workflows/release.yml`. It reruns the project checks on Windows, Ubuntu, macOS, and Windows PowerShell 5.1 against the tagged commit and compiles `BraveDebloat.exe` from `packaging/launcher/BraveDebloat.cs`, and only then confirms the tag matches `$ToolVersion` in `Invoke-BraveDebloat.ps1` and has a `## X.Y.Z - <date>` section in `CHANGELOG.md`, builds `BraveDebloater-vX.Y.Z.zip` from the tagged tree and `BraveDebloater-vX.Y.Z-windows.zip` (same tree, flattened, plus the launcher), writes `SHA256SUMS.txt`, signs a build provenance for both archives (`BraveDebloater-vX.Y.Z.sigstore.json`), and publishes the GitHub release with that changelog section as the notes. It also stores ready-to-submit winget and Scoop manifests in the run's `package-manifests` artifact, and opens the winget-pkgs pull request when a `WINGET_TOKEN` secret exists.
 
 ```powershell
 git tag -a vX.Y.Z -m "BraveDebloater vX.Y.Z"

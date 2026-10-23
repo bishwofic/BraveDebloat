@@ -94,6 +94,8 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: write
+      id-token: write
+      attestations: write
     outputs:
       version: ${{ steps.version.outputs.version }}
     steps:
@@ -143,6 +145,19 @@ jobs:
 
           ./scripts/New-ReleaseChecksums.ps1 -Path "$name.zip", "$name-windows.zip" -OutputPath SHA256SUMS.txt
           Get-Content SHA256SUMS.txt
+
+      # Signs a SLSA build provenance for both archives with this workflow's identity. GitHub keeps it
+      # for `gh attestation verify`, and the bundle ships as a release asset.
+      - name: Attest build provenance
+        id: attest
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-checksums: SHA256SUMS.txt
+
+      - name: Copy the provenance bundle next to the archives
+        env:
+          BUNDLE_PATH: ${{ steps.attest.outputs.bundle-path }}
+        run: cp "$BUNDLE_PATH" "BraveDebloater-$GITHUB_REF_NAME.sigstore.json"
 
       - name: Write winget and Scoop manifests
         shell: pwsh
@@ -212,6 +227,12 @@ jobs:
             "Get-FileHash .\BraveDebloater-$tag.zip -Algorithm SHA256"
             '```'
             ''
+            'Confirm that this repository''s release workflow built the archive from this tag (needs the [GitHub CLI](https://cli.github.com)):'
+            ''
+            '```powershell'
+            "gh attestation verify .\BraveDebloater-$tag.zip --repo ${env:GITHUB_REPOSITORY} --source-ref refs/tags/$tag --signer-workflow ${env:GITHUB_REPOSITORY}/.github/workflows/release.yml"
+            '```'
+            ''
             $compare
           ) -join "`n" | Set-Content -Path RELEASE_NOTES.md -Encoding utf8
           Get-Content RELEASE_NOTES.md
@@ -225,7 +246,8 @@ jobs:
             --title "$GITHUB_REF_NAME" \
             --notes-file RELEASE_NOTES.md \
             --verify-tag \
-            "BraveDebloater-$GITHUB_REF_NAME.zip" "BraveDebloater-$GITHUB_REF_NAME-windows.zip" SHA256SUMS.txt
+            "BraveDebloater-$GITHUB_REF_NAME.zip" "BraveDebloater-$GITHUB_REF_NAME-windows.zip" SHA256SUMS.txt \
+            "BraveDebloater-$GITHUB_REF_NAME.sigstore.json"
 
   # Opens the microsoft/winget-pkgs pull request when a WINGET_TOKEN repository secret exists
   # (a GitHub personal access token with public_repo scope on an account that forked winget-pkgs).
