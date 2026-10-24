@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- After an `-Apply` run that changes something, BraveDebloater asks you to star it on GitHub, in the console and in the `-ReportPath` HTML report. Dry runs, `-WhatIf`, and undo runs don't ask.
+- After an `-Apply` run that writes a policy or a profile `Preferences` file, BraveDebloater asks you to star it on GitHub, in the console and in the `-ReportPath` HTML report. Dry runs, `-WhatIf`, undo runs, and apply runs where every write was skipped don't ask.
 
 ## 0.9.0 - 2026-10-23
 

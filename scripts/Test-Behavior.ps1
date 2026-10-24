@@ -877,6 +877,18 @@ try {
     $utf8RestoreOutput = (& $scriptPath -UndoFromBackup $utf8Backup -PolicyPath $utf8PolicyPath -ProfileRoot $utf8ProfileRoot -Apply *>&1 | Out-String -Width 4096)
     Assert-TextContains -Text $utf8RestoreOutput -Expected 'Restored profile file' -Context 'UTF-8 profile restore output'
     Assert-TextDoesNotContain -Text $utf8RestoreOutput -Unexpected 'starring it on GitHub' -Context 'UTF-8 profile restore output'
+
+    # A profile-only feature selects no policies, so an updated Preferences file is the run's only change.
+    $profileOnlyRoot = Join-Path $tempRoot 'ProfileOnlyRoot'
+    New-Item -ItemType Directory -Path (Join-Path $profileOnlyRoot 'Default') -Force | Out-Null
+    [System.IO.File]::WriteAllText((Join-Path $profileOnlyRoot 'Default/Preferences'), '{"brave":{"new_tab_page":{"show_branded_background_image":true}}}', $utf8NoBom)
+    $profileOnlyRun = { & $scriptPath -Platform Linux -PolicyPath (Join-Path $tempRoot 'profile-only-policy.json') -OnlyFeature NewTabBackgrounds -IncludeProfilePreferences -ProfileRoot $profileOnlyRoot -BackupDirectory (Join-Path $tempRoot 'ProfileOnlyBackups') -Apply *>&1 | Out-String -Width 4096 }
+    $profileOnlyOutput = & $profileOnlyRun
+    Assert-TextContains -Text $profileOnlyOutput -Expected 'Updated profile preferences in' -Context 'profile-only apply output'
+    Assert-TextContains -Text $profileOnlyOutput -Expected 'starring it on GitHub' -Context 'profile-only apply output'
+    $profileOnlyRerunOutput = & $profileOnlyRun
+    Assert-TextContains -Text $profileOnlyRerunOutput -Expected 'No profile preference changes needed' -Context 'unchanged profile-only apply output'
+    Assert-TextDoesNotContain -Text $profileOnlyRerunOutput -Unexpected 'starring it on GitHub' -Context 'unchanged profile-only apply output'
     $restoredJson = [System.IO.File]::ReadAllText($utf8Preferences, $utf8NoBom) | ConvertFrom-Json
     if ([string]$restoredJson.profile.name -ne $utf8Name -or $restoredJson.brave.rewards.enabled -ne $true) {
         throw 'Profile restore did not bring back the original Preferences content.'

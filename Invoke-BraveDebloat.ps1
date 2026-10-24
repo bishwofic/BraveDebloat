@@ -488,12 +488,13 @@ foreach ($policyName in $dnsPresentRemovals) {
     }
 }
 
+$updatedProfileFiles = New-Object System.Collections.Generic.List[string]
 if ($IncludeProfilePreferences) {
     $profileReportRows = $null
     if ($reportRequested) {
         $profileReportRows = $reportRows
     }
-    Invoke-ProfilePreferenceCleanup -Root $ProfileRoot -Manifest $manifest -BackupPath $backupPath -SelectedFeatureIds $selectedFeatureIds -UseFeatureFilter:$customFeatureRequested -DoApply:$applyChanges -ReportRows $profileReportRows
+    Invoke-ProfilePreferenceCleanup -Root $ProfileRoot -Manifest $manifest -BackupPath $backupPath -SelectedFeatureIds $selectedFeatureIds -UseFeatureFilter:$customFeatureRequested -DoApply:$applyChanges -ReportRows $profileReportRows -UpdatedFiles $updatedProfileFiles
 }
 
 $obsoletePlanSummary = if ($obsoletePolicyNames.Count -gt 0) { ", $($obsoletePolicyNames.Count) obsolete leftover(s) to remove" } else { '' }
@@ -577,6 +578,6 @@ if ($reportRequested) {
     }
 }
 
-if ($applyChanges -and ($appliedPolicyCount + $removedObsoleteCount + $removedDnsCount) -gt 0) {
+if ($applyChanges -and ($appliedPolicyCount + $removedObsoleteCount + $removedDnsCount + $updatedProfileFiles.Count) -gt 0) {
     Write-Step 'Enjoyed BraveDebloater? Show support by starring it on GitHub :) https://github.com/osfv/BraveDebloater'
 }
