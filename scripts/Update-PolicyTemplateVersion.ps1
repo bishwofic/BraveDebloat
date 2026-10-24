@@ -66,6 +66,7 @@ if (-not (Test-Path -LiteralPath $TemplateZipPath)) {
 $zip = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path -LiteralPath $TemplateZipPath))
 try {
     $templateVersion = Get-TemplateVersion -Zip $zip
+    $versionDate = $zip.GetEntry('VERSION').LastWriteTime.DateTime.ToString('MMMM d, yyyy', [System.Globalization.CultureInfo]::InvariantCulture)
 }
 finally {
     $zip.Dispose()
@@ -81,8 +82,10 @@ $manifestText = [regex]::Replace($manifestText, '"policyTemplateVersion":\s*"[^"
 Set-Utf8NoBomText -Path $manifestPath -Content $manifestText
 
 $docText = Get-Content -LiteralPath $validationDocPath -Raw
+# Only the template evidence lines follow the zip. "What Changed" describes the last policy change and is
+# written by hand, so a version-only update must not rewrite it.
 $docText = [regex]::Replace($docText, 'Template version: `[^`]+`', ('Template version: `{0}`' -f $templateVersion), 1)
-$docText = [regex]::Replace($docText, 'changed from `([^`]+)` to `[^`]+`', ('changed from `$1` to `{0}`' -f $templateVersion), 1)
+$docText = [regex]::Replace($docText, '(Archive `VERSION` entry timestamp: )[^\r\n]+', ('${1}' + $versionDate), 1)
 Set-Utf8NoBomText -Path $validationDocPath -Content $docText
 
 Write-Host "Updated policy template version from $oldVersion to $templateVersion."
