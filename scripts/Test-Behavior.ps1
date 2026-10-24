@@ -364,6 +364,7 @@ try {
     Assert-TextContains -Text $whatIfOutput -Expected 'WhatIf mode. No policy, backup, or profile files will be changed.' -Context '-WhatIf output'
     Assert-TextDoesNotContain -Text $whatIfOutput -Unexpected 'Backup written' -Context '-WhatIf output'
     Assert-TextDoesNotContain -Text $whatIfOutput -Unexpected 'Done. Restart Brave' -Context '-WhatIf output'
+    Assert-TextDoesNotContain -Text $whatIfOutput -Unexpected 'starring it on GitHub' -Context '-WhatIf output'
     if (Test-Path -LiteralPath $whatIfBackupDirectory) {
         throw '-WhatIf created a backup directory.'
     }
@@ -525,6 +526,7 @@ try {
     Assert-TextContains -Text $linuxApplyOutput -Expected 'Platform: Linux' -Context 'Linux policy apply output'
     Assert-TextContains -Text $linuxApplyOutput -Expected 'Backup written' -Context 'Linux policy apply output'
     Assert-TextContains -Text $linuxApplyOutput -Expected 'Set BraveRewardsDisabled.' -Context 'Linux policy apply output'
+    Assert-TextContains -Text $linuxApplyOutput -Expected 'Show support by starring it on GitHub :) https://github.com/osfv/BraveDebloater' -Context 'Linux policy apply output'
     if (-not (Test-Path -LiteralPath $linuxPolicyPath)) {
         throw 'Linux policy apply did not create the policy JSON file.'
     }
@@ -828,6 +830,7 @@ try {
     $linuxDefaultPreview = (& $scriptPath -Platform Linux -OnlyFeature Rewards -ProfileRoot $missingProfileRoot *>&1 | Out-String -Width 4096)
     Assert-TextContains -Text $linuxDefaultPreview -Expected '/etc/brave/policies/managed/BraveDebloater.json' -Context 'unelevated Linux default path preview'
     Assert-TextContains -Text $linuxDefaultPreview -Expected 'Dry-run complete.' -Context 'unelevated Linux default path preview'
+    Assert-TextDoesNotContain -Text $linuxDefaultPreview -Unexpected 'starring it on GitHub' -Context 'unelevated Linux default path preview'
 
     $ignoredPolicyPathOutput = (& $scriptPath -Platform Windows -OnlyFeature Rewards -ProfileRoot $missingProfileRoot -PolicyPath (Join-Path $tempRoot 'ignored.json') *>&1 | Out-String -Width 4096)
     Assert-TextContains -Text $ignoredPolicyPathOutput -Expected '-PolicyPath is ignored for Windows CurrentUser policies' -Context 'ignored -PolicyPath output'
@@ -873,6 +876,7 @@ try {
     }
     $utf8RestoreOutput = (& $scriptPath -UndoFromBackup $utf8Backup -PolicyPath $utf8PolicyPath -ProfileRoot $utf8ProfileRoot -Apply *>&1 | Out-String -Width 4096)
     Assert-TextContains -Text $utf8RestoreOutput -Expected 'Restored profile file' -Context 'UTF-8 profile restore output'
+    Assert-TextDoesNotContain -Text $utf8RestoreOutput -Unexpected 'starring it on GitHub' -Context 'UTF-8 profile restore output'
     $restoredJson = [System.IO.File]::ReadAllText($utf8Preferences, $utf8NoBom) | ConvertFrom-Json
     if ([string]$restoredJson.profile.name -ne $utf8Name -or $restoredJson.brave.rewards.enabled -ne $true) {
         throw 'Profile restore did not bring back the original Preferences content.'
@@ -1810,6 +1814,7 @@ try {
     Assert-TextContains -Text $dryRunReport -Expected 'data:image/png;base64,' -Context 'dry-run report logo'
     Assert-TextContains -Text $dryRunReport -Expected '<code>BraveWalletDisabled</code>' -Context 'dry-run report'
     Assert-TextContains -Text $dryRunReport -Expected '1 already set' -Context 'dry-run report'
+    Assert-TextDoesNotContain -Text $dryRunReport -Unexpected 'starring it on GitHub' -Context 'dry-run report'
     Assert-TextContains -Text $dryRunReport -Expected 'Report &amp; Run' -Context 'dry-run report path escaping'
     Assert-TextDoesNotContain -Text $dryRunReport -Unexpected 'Report & Run' -Context 'dry-run report path escaping'
     if ([System.IO.File]::ReadAllText($reportPolicyPath) -ne '{"BraveRewardsDisabled": true}') {
@@ -1871,6 +1876,7 @@ try {
     Assert-TextContains -Text $applyReport -Expected '-UndoFromBackup' -Context 'apply report undo command'
     Assert-TextContains -Text $applyReport -Expected 'Invoke-BraveDebloat.ps1' -Context 'apply report undo command'
     Assert-TextContains -Text $applyReport -Expected '2 changes were made' -Context 'apply report status'
+    Assert-TextContains -Text $applyReport -Expected '<a href="https://github.com/osfv/BraveDebloater" target="_blank" rel="noopener">starring it on GitHub</a>' -Context 'apply report star link'
 
     foreach ($badReportCommand in @(
             { & $scriptPath -Platform Linux -OnlyFeature Rewards -PolicyPath $reportPolicyPath -ReportPath (Join-Path $reportRoot 'report.txt') | Out-Null },

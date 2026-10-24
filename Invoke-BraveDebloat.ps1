@@ -576,3 +576,7 @@ if ($reportRequested) {
         }
     }
 }
+
+if ($applyChanges -and ($appliedPolicyCount + $removedObsoleteCount + $removedDnsCount) -gt 0) {
+    Write-Step 'Enjoyed BraveDebloater? Show support by starring it on GitHub :) https://github.com/osfv/BraveDebloater'
+}

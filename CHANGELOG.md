@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- After an `-Apply` run that changes something, BraveDebloater asks you to star it on GitHub, in the console and in the `-ReportPath` HTML report. Dry runs, `-WhatIf`, and undo runs don't ask.
+
 ## 0.9.0 - 2026-10-23
 
 - `-Doctor` reports DNS-over-HTTPS state from the selected target: `DNS over HTTPS: <mode> (<resolver>)`, or `not managed` when `DnsOverHttpsMode` and `DnsOverHttpsTemplates` are absent.
