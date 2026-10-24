@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- The weekly policy template check no longer fails when the repository does not let GitHub Actions open pull requests. It still pushes `automation/policy-templates`, then opens or updates one issue with the comparison and a link to open the pull request, and closes that issue once a pull request exists. Every run now shows the comparison and the manifest validation output on its run page. The October 12 and 19 runs failed at that step, so the `156.1.100.5` update found on October 19 never reached a pull request.
+
 ## 0.9.1 - 2026-10-24
 
 - After an `-Apply` run that writes a policy or a profile `Preferences` file, BraveDebloater asks you to star it on GitHub, in the console and in the `-ReportPath` HTML report. Dry runs, `-WhatIf`, undo runs, and apply runs where every write was skipped don't ask.

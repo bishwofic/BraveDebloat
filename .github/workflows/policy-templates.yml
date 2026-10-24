@@ -19,6 +19,7 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+      issues: write
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -46,7 +47,7 @@ jobs:
         run: |
           $failed = $false
           $result = try {
-            ./scripts/Test-LatestPolicyTemplates.ps1 -TemplateZipPath "$env:RUNNER_TEMP/policy_templates.zip" -RequireVersionMatch *>&1 | Out-String | Out-Null
+            ./scripts/Test-LatestPolicyTemplates.ps1 -TemplateZipPath "$env:RUNNER_TEMP/policy_templates.zip" -RequireVersionMatch *>&1 | Out-String | Write-Host
             "Manifest validation passed."
           }
           catch {
@@ -56,7 +57,16 @@ jobs:
           Add-Content -LiteralPath "$env:RUNNER_TEMP/summary.md" -Value "`n### Manifest validation`n$result"
           Add-Content -LiteralPath $env:GITHUB_OUTPUT -Value "failed=$($failed.ToString().ToLowerInvariant())"
 
-      - name: Open or update the pull request
+      # The comparison must be readable even when no pull request or issue could be written.
+      - name: Show the comparison on the run page
+        if: always()
+        shell: bash
+        run: |
+          if [ -f "$RUNNER_TEMP/summary.md" ]; then
+            cat "$RUNNER_TEMP/summary.md" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Open or update the pull request, or report through an issue
         if: steps.compare.outputs.changed == 'true'
         shell: bash
         env:
@@ -70,8 +80,6 @@ jobs:
             echo
             echo "Opened by the weekly policy template check. Review new policies before adding any of them to config/policies.json. CI does not run automatically on PRs opened by GitHub Actions; close and reopen this PR to start it."
           } > "$RUNNER_TEMP/body.md"
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           bot_email="41898282+github-actions[bot]@users.noreply.github.com"
           git config user.name "github-actions[bot]"
           git config user.email "$bot_email"
@@ -87,19 +95,54 @@ jobs:
               exit 0
             fi
           fi
-          git checkout -B "$branch"
+          # Base the branch on main even when the check was started from another branch.
+          git checkout -B "$branch" origin/main
           git add config/policies.json config/policy-template-snapshot.json docs/debloatable-validation.md
           git commit -m "$title"
           git push --force origin "$branch"
+
+          # When the repository does not let GitHub Actions open pull requests, the check reports through one
+          # issue instead, marked so later runs update it and close it once a pull request exists.
+          marker="<!-- brave-policy-template-check -->"
+          issue_number="$(gh issue list --state open --limit 100 --json number,body --jq "[.[] | select((.body // \"\") | contains(\"$marker\"))][0].number // empty")"
+          close_issue() {
+            if [ -n "$issue_number" ]; then
+              gh issue close "$issue_number" --comment "A pull request from \`$branch\` is open for Brave policy templates $VERSION."
+            fi
+          }
           if [ -n "$pr_number" ]; then
             gh pr edit "$pr_number" --title "$title" --body-file "$RUNNER_TEMP/body.md"
-          else
-            gh pr create --base main --head "$branch" --title "$title" --body-file "$RUNNER_TEMP/body.md"
+            close_issue
+            exit 0
           fi
+          if gh pr create --base main --head "$branch" --title "$title" --body-file "$RUNNER_TEMP/body.md" 2> "$RUNNER_TEMP/pr-error.txt"; then
+            close_issue
+            exit 0
+          fi
+          cat "$RUNNER_TEMP/pr-error.txt" >&2
+          if ! grep -q "not permitted to create or approve pull requests" "$RUNNER_TEMP/pr-error.txt"; then
+            exit 1
+          fi
+          compare_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/compare/main...$branch?expand=1"
+          {
+            echo "$marker"
+            echo "Brave policy templates **$VERSION** are available. The weekly check pushed the update to \`$branch\`, but this repository does not let GitHub Actions open pull requests."
+            echo
+            echo "**[Open the pull request]($compare_url)**, or turn on *Settings > Actions > General > Allow GitHub Actions to create and approve pull requests* so the check opens it next time."
+            echo
+            cat "$RUNNER_TEMP/summary.md"
+          } > "$RUNNER_TEMP/issue.md"
+          issue_title="Brave policy templates $VERSION are available"
+          if [ -n "$issue_number" ]; then
+            gh issue edit "$issue_number" --title "$issue_title" --body-file "$RUNNER_TEMP/issue.md"
+          else
+            gh issue create --title "$issue_title" --body-file "$RUNNER_TEMP/issue.md"
+          fi
+          echo "::warning::GitHub Actions may not open pull requests in this repository, so the update for $VERSION was reported in an issue. Open the pull request: $compare_url"
 
       - name: Fail when the manifest no longer validates
         if: always() && steps.validate.outputs.failed == 'true'
         shell: bash
         run: |
-          echo "::error::config/policies.json does not validate against Brave policy templates ${{ steps.compare.outputs.template_version }}. See the automation PR for details."
+          echo "::error::config/policies.json does not validate against Brave policy templates ${{ steps.compare.outputs.template_version }}. See this run's summary and the automation PR or issue for details."
           exit 1
