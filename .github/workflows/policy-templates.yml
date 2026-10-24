@@ -21,9 +21,11 @@ jobs:
       pull-requests: write
       issues: write
     steps:
+      # The check always compares and rewrites main, also when it is started by hand from another branch.
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: main
           fetch-depth: 0
 
       - name: Download latest policy templates
@@ -66,79 +68,14 @@ jobs:
             cat "$RUNNER_TEMP/summary.md" >> "$GITHUB_STEP_SUMMARY"
           fi
 
+      # Runs every week, so a fallback issue also closes once its update is merged and the templates stop changing.
       - name: Open or update the pull request, or report through an issue
-        if: steps.compare.outputs.changed == 'true'
-        shell: bash
+        shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ steps.compare.outputs.template_version }}
-        run: |
-          branch="automation/policy-templates"
-          title="Update Brave policy templates to ${VERSION}"
-          {
-            cat "$RUNNER_TEMP/summary.md"
-            echo
-            echo "Opened by the weekly policy template check. Review new policies before adding any of them to config/policies.json. CI does not run automatically on PRs opened by GitHub Actions; close and reopen this PR to start it."
-          } > "$RUNNER_TEMP/body.md"
-          bot_email="41898282+github-actions[bot]@users.noreply.github.com"
-          git config user.name "github-actions[bot]"
-          git config user.email "$bot_email"
-          pr_number="$(gh pr list --head "$branch" --state open --json number --jq '.[0].number // empty')"
-          if git fetch --quiet origin "$branch"; then
-            # Never overwrite commits a maintainer pushed to the open automation PR.
-            others="$(git log --format='%ae' origin/main..FETCH_HEAD | grep -vxF "$bot_email" || true)"
-            if [ -n "$others" ]; then
-              echo "::warning::$branch has maintainer commits, so it was not updated. Merge or close that PR to get the next update."
-              if [ -n "$pr_number" ]; then
-                gh pr comment "$pr_number" --body "Newer Brave policy templates ($VERSION) are available, but this branch has maintainer commits, so the weekly check did not overwrite it. Summary for $VERSION:"$'\n\n'"$(cat "$RUNNER_TEMP/body.md")"
-              fi
-              exit 0
-            fi
-          fi
-          # Base the branch on main even when the check was started from another branch.
-          git checkout -B "$branch" origin/main
-          git add config/policies.json config/policy-template-snapshot.json docs/debloatable-validation.md
-          git commit -m "$title"
-          git push --force origin "$branch"
-
-          # When the repository does not let GitHub Actions open pull requests, the check reports through one
-          # issue instead, marked so later runs update it and close it once a pull request exists.
-          marker="<!-- brave-policy-template-check -->"
-          issue_number="$(gh issue list --state open --limit 100 --json number,body --jq "[.[] | select((.body // \"\") | contains(\"$marker\"))][0].number // empty")"
-          close_issue() {
-            if [ -n "$issue_number" ]; then
-              gh issue close "$issue_number" --comment "A pull request from \`$branch\` is open for Brave policy templates $VERSION."
-            fi
-          }
-          if [ -n "$pr_number" ]; then
-            gh pr edit "$pr_number" --title "$title" --body-file "$RUNNER_TEMP/body.md"
-            close_issue
-            exit 0
-          fi
-          if gh pr create --base main --head "$branch" --title "$title" --body-file "$RUNNER_TEMP/body.md" 2> "$RUNNER_TEMP/pr-error.txt"; then
-            close_issue
-            exit 0
-          fi
-          cat "$RUNNER_TEMP/pr-error.txt" >&2
-          if ! grep -q "not permitted to create or approve pull requests" "$RUNNER_TEMP/pr-error.txt"; then
-            exit 1
-          fi
-          compare_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/compare/main...$branch?expand=1"
-          {
-            echo "$marker"
-            echo "Brave policy templates **$VERSION** are available. The weekly check pushed the update to \`$branch\`, but this repository does not let GitHub Actions open pull requests."
-            echo
-            echo "**[Open the pull request]($compare_url)**, or turn on *Settings > Actions > General > Allow GitHub Actions to create and approve pull requests* so the check opens it next time."
-            echo
-            cat "$RUNNER_TEMP/summary.md"
-          } > "$RUNNER_TEMP/issue.md"
-          issue_title="Brave policy templates $VERSION are available"
-          if [ -n "$issue_number" ]; then
-            gh issue edit "$issue_number" --title "$issue_title" --body-file "$RUNNER_TEMP/issue.md"
-          else
-            gh issue create --title "$issue_title" --body-file "$RUNNER_TEMP/issue.md"
-          fi
-          echo "::warning::GitHub Actions may not open pull requests in this repository, so the update for $VERSION was reported in an issue. Open the pull request: $compare_url"
+          TEMPLATES_CHANGED: ${{ steps.compare.outputs.changed }}
+          TEMPLATE_VERSION: ${{ steps.compare.outputs.template_version }}
+        run: ./scripts/Publish-PolicyTemplateUpdate.ps1 -Version $env:TEMPLATE_VERSION -Repository $env:GITHUB_REPOSITORY -ServerUrl $env:GITHUB_SERVER_URL -TemplatesChanged:($env:TEMPLATES_CHANGED -eq 'true') -SummaryPath "$env:RUNNER_TEMP/summary.md" -WorkDirectory $env:RUNNER_TEMP
 
       - name: Fail when the manifest no longer validates
         if: always() && steps.validate.outputs.failed == 'true'
