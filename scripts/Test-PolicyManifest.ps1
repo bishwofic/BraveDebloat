@@ -64,11 +64,13 @@ function Test-PolicyTemplateVersionUpdater {
         Copy-Item -LiteralPath (Join-Path $root 'scripts/Update-PolicyTemplateVersion.ps1') -Destination (Join-Path $tempRoot 'scripts/Update-PolicyTemplateVersion.ps1')
         Copy-Item -LiteralPath (Join-Path $root 'scripts/PolicyTemplateVersion.ps1') -Destination (Join-Path $tempRoot 'scripts/PolicyTemplateVersion.ps1')
         Set-Content -LiteralPath (Join-Path $tempRoot 'config/policies.json') -Value '{"policyTemplateVersion": "0.0.0.0"}' -Encoding UTF8
-        Set-Content -LiteralPath (Join-Path $tempRoot 'docs/debloatable-validation.md') -Value 'Template version: `0.0.0.0`' -Encoding UTF8
+        $history = 'The manifest version in `config/policies.json` changed from `155.1.99.2` to `0.0.0.0`.'
+        Set-Content -LiteralPath (Join-Path $tempRoot 'docs/debloatable-validation.md') -Value @('- Template version: `0.0.0.0`', '- Archive `VERSION` entry timestamp: January 1, 2000', '', $history) -Encoding UTF8
 
         $zipRoot = Join-Path $tempRoot 'zip'
         New-Item -ItemType Directory -Path $zipRoot -Force | Out-Null
         Set-Content -LiteralPath (Join-Path $zipRoot 'VERSION') -Value "PATCH=4`nBUILD=3`nMAJOR=1`nMINOR=2" -Encoding UTF8
+        (Get-Item -LiteralPath (Join-Path $zipRoot 'VERSION')).LastWriteTime = [datetime]'2026-10-19T12:00:00'
         $zipPath = Join-Path $tempRoot 'template.zip'
         Add-Type -AssemblyName System.IO.Compression.FileSystem
         [System.IO.Compression.ZipFile]::CreateFromDirectory($zipRoot, $zipPath)
@@ -77,6 +79,16 @@ function Test-PolicyTemplateVersionUpdater {
         $updated = Get-Content -LiteralPath (Join-Path $tempRoot 'config/policies.json') -Raw | ConvertFrom-Json
         if ([string]$updated.policyTemplateVersion -ne '1.2.3.4') {
             throw 'Update-PolicyTemplateVersion.ps1 did not assemble shuffled VERSION keys by name.'
+        }
+        $doc = Get-Content -LiteralPath (Join-Path $tempRoot 'docs/debloatable-validation.md') -Raw
+        if (-not $doc.Contains('- Template version: `1.2.3.4`')) {
+            throw 'Update-PolicyTemplateVersion.ps1 did not record the template version in docs/debloatable-validation.md.'
+        }
+        if (-not $doc.Contains('- Archive `VERSION` entry timestamp: October 19, 2026')) {
+            throw 'Update-PolicyTemplateVersion.ps1 did not record the VERSION entry date in docs/debloatable-validation.md.'
+        }
+        if (-not $doc.Contains($history)) {
+            throw 'Update-PolicyTemplateVersion.ps1 rewrote the "What Changed" history in docs/debloatable-validation.md.'
         }
         foreach ($updatedPath in @((Join-Path $tempRoot 'config/policies.json'), (Join-Path $tempRoot 'docs/debloatable-validation.md'))) {
             $bytes = [System.IO.File]::ReadAllBytes($updatedPath)
