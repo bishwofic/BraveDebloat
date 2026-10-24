@@ -449,6 +449,8 @@ summary{cursor:pointer}
 .undo code{flex:1;font-size:13px;word-break:break-all}
 button{border:0;background:#fb542b;color:#fff;border-radius:8px;padding:6px 14px;font:inherit;font-size:13px;cursor:pointer}
 .muted{color:#6e6e73}
+.star{margin-top:32px}
+.star a{color:#fb542b}
 footer{margin-top:40px;color:#86868b;font-size:12px}
 </style>
 </head>
@@ -485,6 +487,10 @@ footer{margin-top:40px;color:#86868b;font-size:12px}
     }
     else {
         [void]$sb.Append('<p class="muted">Nothing to undo. Run with -Apply and the report will include the undo command.</p>')
+    }
+
+    if ($applied -and $changes.Count -gt 0) {
+        [void]$sb.Append('<p class="star">Enjoyed BraveDebloater? Show support by <a href="https://github.com/osfv/BraveDebloater" target="_blank" rel="noopener">starring it on GitHub</a> :)</p>')
     }
 
     $footer = @($Report.Details.GetEnumerator() | ForEach-Object { "$(& $e $_.Key): $(& $e $_.Value)" }) -join ' &middot; '

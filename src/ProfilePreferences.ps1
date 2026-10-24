@@ -94,7 +94,8 @@ function Invoke-ProfilePreferenceCleanup {
         [string[]]$SelectedFeatureIds = @(),
         [switch]$UseFeatureFilter,
         [switch]$DoApply,
-        [System.Collections.Generic.List[object]]$ReportRows
+        [System.Collections.Generic.List[object]]$ReportRows,
+        [System.Collections.Generic.List[string]]$UpdatedFiles
     )
 
     # Skips must reach the report too, or a standalone report would hide that cleanup did not run.
@@ -260,6 +261,9 @@ function Invoke-ProfilePreferenceCleanup {
             Update-BackupProfileFiles -BackupPath $BackupPath -ProfileFiles $profileBackups.ToArray()
             Set-JsonFileContent -Path $file -Object $json -Depth 100
             Write-Step "Updated profile preferences in $file."
+            if ($null -ne $UpdatedFiles) {
+                [void]$UpdatedFiles.Add($file)
+            }
         }
         elseif ($DoApply) {
             Write-Step "No profile preference changes needed in $file."
