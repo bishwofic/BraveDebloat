@@ -19,10 +19,13 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+      issues: write
     steps:
+      # The check always compares and rewrites main, also when it is started by hand from another branch.
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: main
           fetch-depth: 0
 
       - name: Download latest policy templates
@@ -46,7 +49,7 @@ jobs:
         run: |
           $failed = $false
           $result = try {
-            ./scripts/Test-LatestPolicyTemplates.ps1 -TemplateZipPath "$env:RUNNER_TEMP/policy_templates.zip" -RequireVersionMatch *>&1 | Out-String | Out-Null
+            ./scripts/Test-LatestPolicyTemplates.ps1 -TemplateZipPath "$env:RUNNER_TEMP/policy_templates.zip" -RequireVersionMatch *>&1 | Out-String | Write-Host
             "Manifest validation passed."
           }
           catch {
@@ -56,50 +59,27 @@ jobs:
           Add-Content -LiteralPath "$env:RUNNER_TEMP/summary.md" -Value "`n### Manifest validation`n$result"
           Add-Content -LiteralPath $env:GITHUB_OUTPUT -Value "failed=$($failed.ToString().ToLowerInvariant())"
 
-      - name: Open or update the pull request
-        if: steps.compare.outputs.changed == 'true'
+      # The comparison must be readable even when no pull request or issue could be written.
+      - name: Show the comparison on the run page
+        if: always()
         shell: bash
+        run: |
+          if [ -f "$RUNNER_TEMP/summary.md" ]; then
+            cat "$RUNNER_TEMP/summary.md" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      # Runs every week, so a fallback issue also closes once its update is merged and the templates stop changing.
+      - name: Open or update the pull request, or report through an issue
+        shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ steps.compare.outputs.template_version }}
-        run: |
-          branch="automation/policy-templates"
-          title="Update Brave policy templates to ${VERSION}"
-          {
-            cat "$RUNNER_TEMP/summary.md"
-            echo
-            echo "Opened by the weekly policy template check. Review new policies before adding any of them to config/policies.json. CI does not run automatically on PRs opened by GitHub Actions; close and reopen this PR to start it."
-          } > "$RUNNER_TEMP/body.md"
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          bot_email="41898282+github-actions[bot]@users.noreply.github.com"
-          git config user.name "github-actions[bot]"
-          git config user.email "$bot_email"
-          pr_number="$(gh pr list --head "$branch" --state open --json number --jq '.[0].number // empty')"
-          if git fetch --quiet origin "$branch"; then
-            # Never overwrite commits a maintainer pushed to the open automation PR.
-            others="$(git log --format='%ae' origin/main..FETCH_HEAD | grep -vxF "$bot_email" || true)"
-            if [ -n "$others" ]; then
-              echo "::warning::$branch has maintainer commits, so it was not updated. Merge or close that PR to get the next update."
-              if [ -n "$pr_number" ]; then
-                gh pr comment "$pr_number" --body "Newer Brave policy templates ($VERSION) are available, but this branch has maintainer commits, so the weekly check did not overwrite it. Summary for $VERSION:"$'\n\n'"$(cat "$RUNNER_TEMP/body.md")"
-              fi
-              exit 0
-            fi
-          fi
-          git checkout -B "$branch"
-          git add config/policies.json config/policy-template-snapshot.json docs/debloatable-validation.md
-          git commit -m "$title"
-          git push --force origin "$branch"
-          if [ -n "$pr_number" ]; then
-            gh pr edit "$pr_number" --title "$title" --body-file "$RUNNER_TEMP/body.md"
-          else
-            gh pr create --base main --head "$branch" --title "$title" --body-file "$RUNNER_TEMP/body.md"
-          fi
+          TEMPLATES_CHANGED: ${{ steps.compare.outputs.changed }}
+          TEMPLATE_VERSION: ${{ steps.compare.outputs.template_version }}
+        run: ./scripts/Publish-PolicyTemplateUpdate.ps1 -Version $env:TEMPLATE_VERSION -Repository $env:GITHUB_REPOSITORY -ServerUrl $env:GITHUB_SERVER_URL -TemplatesChanged:($env:TEMPLATES_CHANGED -eq 'true') -SummaryPath "$env:RUNNER_TEMP/summary.md" -WorkDirectory $env:RUNNER_TEMP
 
       - name: Fail when the manifest no longer validates
         if: always() && steps.validate.outputs.failed == 'true'
         shell: bash
         run: |
-          echo "::error::config/policies.json does not validate against Brave policy templates ${{ steps.compare.outputs.template_version }}. See the automation PR for details."
+          echo "::error::config/policies.json does not validate against Brave policy templates ${{ steps.compare.outputs.template_version }}. See this run's summary and the automation PR or issue for details."
           exit 1

@@ -1916,6 +1916,90 @@ try {
     }
     Test-RunReportEscaping
 
+    # The weekly template check's publish step, with git and gh replaced by a recorder.
+    $publishScript = Join-Path $root 'scripts/Publish-PolicyTemplateUpdate.ps1'
+    $publishRoot = Join-Path $tempRoot 'TemplatePublish'
+    New-Item -ItemType Directory -Path $publishRoot -Force | Out-Null
+    $publishSummary = Join-Path $publishRoot 'summary.md'
+    [System.IO.File]::WriteAllText($publishSummary, "Brave policy templates: 156.1.99.33 -> 156.1.100.5`n")
+    $publishCalls = New-Object System.Collections.Generic.List[string]
+    $publishScenario = @{}
+    $publishRunner = {
+        param([string]$Name, [string[]]$Arguments)
+        $line = "$Name $($Arguments -join ' ')"
+        [void]$publishCalls.Add($line)
+        $exitCode = 0
+        $text = ''
+        if ($line -like 'gh pr list *') { $text = $publishScenario.PullRequests }
+        elseif ($line -like 'gh api *issues*') { $text = $publishScenario.Issues }
+        elseif ($line -like 'git fetch *') { $exitCode = $publishScenario.FetchExitCode }
+        elseif ($line -like 'git log *') { $text = $publishScenario.BranchAuthors }
+        elseif ($line -like 'gh pr create *') { $exitCode = $publishScenario.CreateExitCode; $text = $publishScenario.CreateText }
+        [pscustomobject]@{ ExitCode = $exitCode; Text = [string]$text }
+    }.GetNewClosure()
+    function Invoke-TemplatePublish {
+        param([hashtable]$Scenario = @{}, [switch]$Unchanged)
+        $publishCalls.Clear()
+        $publishScenario.Clear()
+        $defaults = @{ PullRequests = ''; Issues = ''; FetchExitCode = 1; BranchAuthors = ''; CreateExitCode = 0; CreateText = 'https://github.com/osfv/BraveDebloater/pull/9' }
+        foreach ($key in @($defaults.Keys) + @($Scenario.Keys)) {
+            $publishScenario[$key] = if ($Scenario.ContainsKey($key)) { $Scenario[$key] } else { $defaults[$key] }
+        }
+        $workDirectory = Join-Path $publishRoot ([guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory -Path $workDirectory -Force | Out-Null
+        $output = & $publishScript -Version '156.1.100.5' -Repository 'osfv/BraveDebloater' -TemplatesChanged:(-not $Unchanged) -SummaryPath $publishSummary -WorkDirectory $workDirectory -ToolRunner $publishRunner *>&1 | Out-String -Width 4096
+        [pscustomobject]@{ Calls = ($publishCalls -join "`n"); Output = $output; WorkDirectory = $workDirectory }
+    }
+    $openPullRequest = '{"number":7,"url":"https://github.com/osfv/BraveDebloater/pull/7"}'
+    $trackingIssue = '{"number":5,"body":"<!-- brave-policy-template-check -->\nold"}'
+    $markedPullRequest = '{"number":3,"body":"<!-- brave-policy-template-check -->","pull_request":{"url":"x"}}'
+    $blockedText = 'pull request create failed: GraphQL: GitHub Actions is not permitted to create or approve pull requests (createPullRequest)'
+
+    $publish = Invoke-TemplatePublish
+    Assert-TextContains -Text $publish.Calls -Expected 'git push --force origin automation/policy-templates' -Context 'template publish'
+    Assert-TextContains -Text $publish.Calls -Expected 'gh pr create --repo osfv/BraveDebloater --base main --head automation/policy-templates --title Update Brave policy templates to 156.1.100.5' -Context 'template publish'
+    Assert-TextDoesNotContain -Text $publish.Calls -Unexpected 'gh issue' -Context 'template publish'
+
+    # A pull request whose body carries the marker is not the tracking issue.
+    $publish = Invoke-TemplatePublish -Scenario @{ CreateExitCode = 1; CreateText = $blockedText; Issues = $markedPullRequest }
+    Assert-TextContains -Text $publish.Calls -Expected 'gh issue create --repo osfv/BraveDebloater --title Brave policy templates 156.1.100.5 are available' -Context 'blocked template publish'
+    Assert-TextDoesNotContain -Text $publish.Calls -Unexpected 'gh issue close' -Context 'blocked template publish'
+    Assert-TextContains -Text $publish.Output -Expected '::warning::GitHub Actions may not open pull requests' -Context 'blocked template publish output'
+    $publishIssueBody = [System.IO.File]::ReadAllText((Join-Path $publish.WorkDirectory 'policy-template-issue.md'))
+    Assert-TextContains -Text $publishIssueBody -Expected '<!-- brave-policy-template-check -->' -Context 'tracking issue body'
+    Assert-TextContains -Text $publishIssueBody -Expected 'https://github.com/osfv/BraveDebloater/compare/main...automation/policy-templates?expand=1' -Context 'tracking issue body'
+    Assert-TextContains -Text $publishIssueBody -Expected 'Brave policy templates: 156.1.99.33 -> 156.1.100.5' -Context 'tracking issue body'
+
+    $publish = Invoke-TemplatePublish -Scenario @{ CreateExitCode = 1; CreateText = $blockedText; Issues = "$markedPullRequest`n$trackingIssue" }
+    Assert-TextContains -Text $publish.Calls -Expected 'gh issue edit 5 --repo osfv/BraveDebloater' -Context 'blocked template publish with an open issue'
+    Assert-TextDoesNotContain -Text $publish.Calls -Unexpected 'gh issue create' -Context 'blocked template publish with an open issue'
+
+    $publish = Invoke-TemplatePublish -Scenario @{ PullRequests = $openPullRequest; Issues = $trackingIssue }
+    Assert-TextContains -Text $publish.Calls -Expected 'gh pr edit 7 --repo osfv/BraveDebloater' -Context 'template publish with an open pull request'
+    Assert-TextContains -Text $publish.Calls -Expected 'gh issue close 5 --repo osfv/BraveDebloater' -Context 'template publish with an open pull request'
+    Assert-TextDoesNotContain -Text $publish.Calls -Unexpected 'gh pr create' -Context 'template publish with an open pull request'
+
+    $publish = Invoke-TemplatePublish -Scenario @{ FetchExitCode = 0; BranchAuthors = "41898282+github-actions[bot]@users.noreply.github.com`nmaintainer@example.com"; PullRequests = $openPullRequest; Issues = $trackingIssue }
+    Assert-TextDoesNotContain -Text $publish.Calls -Unexpected 'git push' -Context 'template publish over maintainer commits'
+    Assert-TextContains -Text $publish.Calls -Expected 'gh pr comment 7 --repo osfv/BraveDebloater' -Context 'template publish over maintainer commits'
+    Assert-TextContains -Text $publish.Calls -Expected 'gh issue close 5 --repo osfv/BraveDebloater' -Context 'template publish over maintainer commits'
+
+    $publish = Invoke-TemplatePublish -Unchanged -Scenario @{ Issues = $trackingIssue }
+    Assert-TextContains -Text $publish.Calls -Expected 'gh issue close 5 --repo osfv/BraveDebloater' -Context 'unchanged templates with an open issue'
+    Assert-TextDoesNotContain -Text $publish.Calls -Unexpected 'git ' -Context 'unchanged templates with an open issue'
+
+    $publishRejected = $false
+    try {
+        Invoke-TemplatePublish -Scenario @{ CreateExitCode = 1; CreateText = 'HTTP 502: Bad Gateway' } | Out-Null
+    }
+    catch {
+        $publishRejected = $true
+        Assert-TextContains -Text $_.Exception.Message -Expected 'HTTP 502' -Context 'template publish with another pull request failure'
+    }
+    if (-not $publishRejected) {
+        throw 'The template publish step reported through an issue after a pull request failure other than the Actions setting.'
+    }
+
     & (Join-Path $root 'tests/WriteSafety.ps1') -TempRoot (Join-Path $tempRoot 'WriteSafety')
     Write-Host 'Behavior checks passed.'
 }
