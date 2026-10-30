@@ -1,37 +1,28 @@
 # Contributing
 
-[![Contributions welcome](https://img.shields.io/badge/contributions-welcome-2ea44f?style=flat-square&logo=github&logoColor=white)](https://github.com/osfv/BraveDebloater/issues)
+Issues and pull requests are welcome at [bishwofic/BraveDebloat](https://github.com/bishwofic/BraveDebloat/issues).
 
-Thanks for helping make BraveDebloater safer and cleaner.
+This is a fork of [osfv/BraveDebloater](https://github.com/osfv/BraveDebloater). Fixes to the core script are usually best sent there first, so everyone benefits; changes specific to this fork (the `Extreme` preset and the ready-made profiles) belong here.
 
 ## Rules For Policy Changes
 
-- Prefer official Brave or Chromium enterprise policies over profile JSON edits.
-- Do not add policies that disable Brave Shields, whitelist URLs from Shields, weaken Safe Browsing, or disable browser/component updates.
+- Use official Brave or Chromium enterprise policies rather than profile JSON edits.
+- Never add policies that disable Brave Shields, allowlist URLs from Shields, weaken Safe Browsing, or disable browser or component updates.
 - Add every policy to `config/policies.json` with a clear category and reason.
-- Add or update a friendly feature toggle when a policy should be user-selectable.
-- Keep dry-run output understandable for non-experts.
-- Keep restore behavior working whenever a new write path is added.
-- Treat `-List` and `-WhatIf` as read-only paths.
+- Keep previews readable for non-experts, and keep restore working for any new write path.
 
-## AI Agent And LLM Contributions
+## Keep the Profiles in Sync
 
-If an AI agent, coding assistant, or autonomous workflow changes this repository, it must follow `AGENTS.md`.
-
-Agent-made changes must stay coherent across code, docs, tests, and configuration. If a change touches policy behavior, platform behavior, restore behavior, user-facing output, or CI, update every affected file in the same pull request.
-
-Do not submit agent output that only patches the visible symptom. Trace the shared path, fix the common cause, and run the checks below.
+The `Extreme` preset, `profiles/macos/Brave-Debloat.mobileconfig` and `profiles/windows/Brave-Debloat.reg` must set the same policies with the same values. If you change one, update the others in the same pull request (including `Brave-Debloat-Remove.reg`), and bump `PayloadVersion` in the mobileconfig.
 
 ## Checks
-
-New behavior needs a test in the same pull request: a Pester test in `tests/` or a case in `scripts/Test-Behavior.ps1`. Bug fixes should add a test that fails without the fix.
 
 Before opening a pull request, run:
 
 ```powershell
-.\scripts\Test-PolicyManifest.ps1
-.\scripts\Test-Behavior.ps1
-.\Invoke-BraveDebloat.ps1 -Preset Extreme -LockShields
+./scripts/Test-PolicyManifest.ps1
+./scripts/Test-Behavior.ps1
+./Invoke-BraveDebloat.ps1 -Preset Extreme
 ```
 
-The second command should stay a dry-run unless you pass `-Apply`.
+The last command is a preview and changes nothing.

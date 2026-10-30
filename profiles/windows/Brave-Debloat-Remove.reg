@@ -1,0 +1,31 @@
+Windows Registry Editor Version 5.00
+
+; Removes the 25 Brave Debloat policies. Other Brave policies are left alone.
+; Restart Brave afterwards.
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\BraveSoftware\Brave]
+"BraveAIChatEnabled"=-
+"BraveDeAmpEnabled"=-
+"BraveDebouncingEnabled"=-
+"BraveGlobalPrivacyControlEnabled"=-
+"BraveNewsDisabled"=-
+"BraveP3AEnabled"=-
+"BravePlaylistEnabled"=-
+"BraveReduceLanguageEnabled"=-
+"BraveRewardsDisabled"=-
+"BraveStatsPingEnabled"=-
+"BraveTalkDisabled"=-
+"BraveTrackingQueryParametersFilteringEnabled"=-
+"BraveVPNDisabled"=-
+"BraveWalletDisabled"=-
+"BraveWebDiscoveryEnabled"=-
+"BrowserLabsEnabled"=-
+"EmailAliasesEnabled"=-
+"GoogleSearchSidePanelEnabled"=-
+"MediaRecommendationsEnabled"=-
+"MetricsReportingEnabled"=-
+"NTPCardsVisible"=-
+"PromotionsEnabled"=-
+"ShoppingListEnabled"=-
+"SpellCheckServiceEnabled"=-
+"UrlKeyedAnonymizedDataCollectionEnabled"=-

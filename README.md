@@ -23,7 +23,7 @@ This is a fork of **[osfv/BraveDebloater](https://github.com/osfv/BraveDebloater
 What this fork changes:
 
 - The `Extreme` preset keeps convenience features instead of removing them (details below).
-- A ready-made macOS configuration profile, so Mac users can install the policies without running a script.
+- Ready-made files for macOS and Windows, so you can install the policies without running a script.
 
 ## What Extreme Does
 
@@ -47,6 +47,16 @@ It never disables Brave updates, turns off Shields or weakens Safe Browsing. The
 To remove it, go to the same screen, select the profile and click **−**.
 
 The profile is unsigned, so macOS labels it "Unverified". That's expected for a personal profile; you can read the whole file before installing.
+
+## Windows: Install the .reg File (no script)
+
+1. Download [Brave-Debloat.reg](https://github.com/bishwofic/BraveDebloat/raw/main/profiles/windows/Brave-Debloat.reg).
+2. Double-click it, click **Yes** on the admin prompt, then **Yes** to add it to the registry.
+3. Restart Brave, then check `brave://policy`.
+
+It applies to every user on the PC. To remove it, run [Brave-Debloat-Remove.reg](https://github.com/bishwofic/BraveDebloat/raw/main/profiles/windows/Brave-Debloat-Remove.reg) the same way; it deletes only these 25 policies and leaves any other Brave policies alone.
+
+If the link opens as text in your browser, right-click it and choose **Save link as**, keeping the `.reg` extension.
 
 ## Windows, macOS and Linux: Use the Script
 

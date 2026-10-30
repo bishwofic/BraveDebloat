@@ -1,15 +1,15 @@
 # Security Policy
 
-[![Security policy](https://img.shields.io/badge/security-policy-0969da?style=flat-square&logo=github&logoColor=white)](https://github.com/osfv/BraveDebloater/security/policy)
+Please report security-sensitive issues privately instead of opening a public issue. Use [GitHub private vulnerability reporting](https://github.com/bishwofic/BraveDebloat/security/advisories/new), and please allow time for a fix before disclosing publicly.
 
-Please report security-sensitive issues privately instead of opening a public issue. Use [GitHub private vulnerability reporting](https://github.com/osfv/BraveDebloater/security/advisories/new), or email [iqad@tersa.tech](mailto:iqad@tersa.tech) if you don't have a GitHub account. Please give us a chance to ship a fix before you disclose the issue publicly.
+If the issue is in the script itself and also affects the original project, please report it to [osfv/BraveDebloater](https://github.com/osfv/BraveDebloater/security) too.
 
 This project is intentionally conservative:
 
-- It uses supported enterprise policies as the primary mechanism.
-- It refuses known unsafe policy categories such as Shield disablement, Safe Browsing allowlists, TLS warning bypasses, and update disablement.
-- It defaults to dry-run mode.
-- It creates restore backups before applying changes.
-- It validates backup metadata before restoring registry or profile files.
+- It uses official Brave and Chromium enterprise policies only.
+- It refuses unsafe policies such as disabling Shields, Safe Browsing allowlists, TLS warning bypasses and update disablement.
+- The script previews by default and changes nothing without `-Apply`.
+- It creates restore backups before applying changes, and validates them before restoring.
+- The macOS profile and Windows `.reg` files are plain text, so every setting can be read before installing.
 
-When reporting an issue, include the BraveDebloater version or commit, Windows version, Brave version, command used, and any relevant backup metadata with personal paths redacted.
+When reporting, include the commit you used, your OS and Brave version, the command or file you ran, and any relevant output with personal paths removed.
