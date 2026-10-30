@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>PayloadContent</key>
+	<array>
+		<dict>
+			<key>BraveAIChatEnabled</key>
+			<false/>
+			<key>BraveDeAmpEnabled</key>
+			<true/>
+			<key>BraveDebouncingEnabled</key>
+			<true/>
+			<key>BraveGlobalPrivacyControlEnabled</key>
+			<true/>
+			<key>BraveNewsDisabled</key>
+			<true/>
+			<key>BraveP3AEnabled</key>
+			<false/>
+			<key>BravePlaylistEnabled</key>
+			<false/>
+			<key>BraveReduceLanguageEnabled</key>
+			<true/>
+			<key>BraveRewardsDisabled</key>
+			<true/>
+			<key>BraveStatsPingEnabled</key>
+			<false/>
+			<key>BraveTalkDisabled</key>
+			<true/>
+			<key>BraveTrackingQueryParametersFilteringEnabled</key>
+			<true/>
+			<key>BraveVPNDisabled</key>
+			<true/>
+			<key>BraveWalletDisabled</key>
+			<true/>
+			<key>BraveWebDiscoveryEnabled</key>
+			<false/>
+			<key>BrowserLabsEnabled</key>
+			<false/>
+			<key>EmailAliasesEnabled</key>
+			<false/>
+			<key>GoogleSearchSidePanelEnabled</key>
+			<false/>
+			<key>MediaRecommendationsEnabled</key>
+			<false/>
+			<key>MetricsReportingEnabled</key>
+			<false/>
+			<key>NTPCardsVisible</key>
+			<false/>
+			<key>PayloadDisplayName</key>
+			<string>Brave Browser policies</string>
+			<key>PayloadEnabled</key>
+			<true/>
+			<key>PayloadIdentifier</key>
+			<string>local.beesh.bravedebloat.settings</string>
+			<key>PayloadType</key>
+			<string>com.brave.Browser</string>
+			<key>PayloadUUID</key>
+			<string>F33596CC-6839-4F09-885D-45C313A9E39F</string>
+			<key>PayloadVersion</key>
+			<integer>1</integer>
+			<key>PromotionsEnabled</key>
+			<false/>
+			<key>ShoppingListEnabled</key>
+			<false/>
+			<key>SpellCheckServiceEnabled</key>
+			<false/>
+			<key>UrlKeyedAnonymizedDataCollectionEnabled</key>
+			<false/>
+		</dict>
+	</array>
+	<key>PayloadDescription</key>
+	<string>Disables Leo, Wallet, Rewards, VPN, News, Talk, Playlist, Email Aliases, telemetry and promo surfaces in Brave. Keeps autofill, translate, search suggestions, Wayback, QR codes, Speedreader and payment buttons.</string>
+	<key>PayloadDisplayName</key>
+	<string>Brave Debloat (25 policies)</string>
+	<key>PayloadIdentifier</key>
+	<string>local.beesh.bravedebloat</string>
+	<key>PayloadOrganization</key>
+	<string>Personal</string>
+	<key>PayloadRemovalDisallowed</key>
+	<false/>
+	<key>PayloadScope</key>
+	<string>System</string>
+	<key>PayloadType</key>
+	<string>Configuration</string>
+	<key>PayloadUUID</key>
+	<string>96712333-ACD5-42C7-A7B9-494BD6AEAF6D</string>
+	<key>PayloadVersion</key>
+	<integer>1</integer>
+</dict>
+</plist>

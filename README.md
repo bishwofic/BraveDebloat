@@ -102,6 +102,17 @@ Brave can reset or re-promote settings after updates. Enterprise policies stay e
 
 On Windows and macOS, Brave Origin is a paid stripped-down build. This tool keeps the Brave you already have and applies the same class of official policies for free.
 
+### macOS: Profile Install
+
+1. Download [Brave-Debloat.mobileconfig](https://github.com/bishwofic/BraveDebloat/raw/main/profiles/macos/Brave-Debloat.mobileconfig).
+2. Double-click it. macOS shows "Profile Downloaded".
+3. Open **System Settings → General → Device Management**, double-click **Brave Debloat (25 policies)**, click **Install**, and enter your password.
+4. Quit and reopen Brave, then check `brave://policy`.
+
+To remove it: same screen, select the profile and click **−**.
+
+The profile is unsigned, so macOS labels it "Unverified". That's expected for a personal profile; you can read the whole file before installing.
+
 ## Install
 
 One line in PowerShell (Windows PowerShell 5.1 or PowerShell 7 on Windows, macOS, or Linux):
