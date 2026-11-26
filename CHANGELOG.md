@@ -2,6 +2,34 @@
 
 ## Unreleased
 
+## 0.9.3 - 2026-11-26
+
+- Recorded Brave policy template `159.1.102.30`. It adds `GeminiChromeFileUploadSettings`; no policy BraveDebloater manages was removed, deprecated, or retyped.
+
+- `./Invoke-BraveDebloat.ps1` now runs directly from a macOS or Linux shell. The script was checked out and archived with Windows line endings, so the `#!/usr/bin/env pwsh` line failed with `/usr/bin/env: 'pwsh\r': No such file or directory`. `pwsh ./Invoke-BraveDebloat.ps1` and runs from inside PowerShell already worked.
+
+- `-ExportPolicyPath` and `-ReportPath` now refuse a path that is Brave's policy file: the `-PolicyPath` file or default policy file of the run (also through another spelling or a symlink), any file in `/etc/brave/policies` on Linux (also when `managed` or `recommended` is a symlink), and Brave's managed and user preference plists on macOS. Previously a preview such as `-PolicyPath ./brave.json -ExportPolicyPath ./brave.json` replaced that policy file without `-Apply` and without a backup. The command now stops before writing anything; export or report to a different file.
+
+- The README demo now plays inline as an animated clip instead of a still preview image.
+
+- The README is shorter and starts with what the tool does and a five-step quick start. Install options moved to `docs/install.md`, the full option reference to `docs/usage.md`, and the release and template-check notes to `CONTRIBUTING.md`.
+
+## 0.9.2 - 2026-11-13
+
+- Rewriting a profile `Preferences` file or a Linux policy file on Linux and macOS now keeps the file's owner and permissions (PowerShell 7.3 or newer). Previously the replaced file got the default permissions, so a `0600` `Preferences` file became world-readable (`0644`), and a file rewritten with `sudo` ended up owned by root.
+
+- On Linux, `/etc/brave/policies/managed/BraveDebloater.json` and the `brave/policies/managed` folders are now made readable for every user after an apply or undo run. With a restrictive root umask (`027` or `077`) Brave could not read the new file, so the applied policies silently had no effect. A `-PolicyPath` file keeps the permissions it has.
+
+- A string policy value that differs only in case, for example `DnsOverHttpsMode` = `OFF`, is no longer reported as "Already set" in previews, reports, and `-Doctor`. Brave reads these values case-sensitively.
+
+- `-ReportPath` on a Linux desktop now opens reports whose path contains spaces. The path was split into several arguments for `xdg-open`.
+
+- The Linux default profile folder for `-IncludeProfilePreferences` and `-Doctor` follows `XDG_CONFIG_HOME` when it is set to an absolute path, as Brave does.
+
+- A `-NoBackup` preview report no longer says `Backup: Written on -Apply` or promises an undo command; it now says that the matching `-Apply` run writes no backup.
+
+- The "Could not read existing policies" warning no longer ends with a doubled period.
+
 - `scripts/Update-PolicyTemplateVersion.ps1` no longer rewrites the "What Changed" sentence in `docs/debloatable-validation.md`. On the version-only `156.1.100.5` update it changed "from `155.1.99.2` to `156.1.99.33`" into "to `156.1.100.5`", which credited the Autofill deprecations to the wrong template. It now updates only the template evidence: the version and the `VERSION` entry date from the zip.
 
 - The weekly policy template check no longer fails when the repository does not let GitHub Actions open pull requests. It still pushes `automation/policy-templates`, then opens or updates one issue with the comparison and a link to open the pull request. Later runs close that issue once a pull request from the branch is open or `main` records the latest templates. The check always compares and rewrites `main`, also when started by hand from another branch. Every run now shows the comparison and the manifest validation output on its run page. The October 12 and 19 runs failed at that step, so the `156.1.100.5` update found on October 19 never reached a pull request.

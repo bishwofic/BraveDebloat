@@ -71,7 +71,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$ToolVersion = '0.9.1'
+$ToolVersion = '0.9.3'
 
 $ProjectRoot = if ([string]::IsNullOrWhiteSpace($PSScriptRoot)) {
     Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -272,6 +272,16 @@ if ($policyTarget.Kind -eq 'MobileMDM' -and $writesPolicyTarget) {
 }
 if (-not [string]::IsNullOrWhiteSpace($PolicyPath) -and $policyTarget.Kind -notin @('JsonFile', 'MacOSPlist')) {
     Write-Warning "-PolicyPath is ignored for $platformName $Scope policies, which are written to $($policyTarget.Path). It only selects a file for Linux or macOS LocalMachine targets."
+}
+
+# An export is written without -Apply or a backup, and a report is written in a preview as well as
+# after -Apply, never through the policy backup. Neither may be a file Brave reads its policies from.
+# Checked before anything is written, also for -WhatIf.
+if ($exportRequested) {
+    Assert-PolicyOutputPath -ParameterName 'ExportPolicyPath' -Path $ExportPolicyPath -Target $policyTarget
+}
+if ($reportRequested) {
+    Assert-PolicyOutputPath -ParameterName 'ReportPath' -Path $ReportPath -Target $policyTarget
 }
 
 # Enforce the iOS/iPadOS MDM allowlist for every run (dry-run, apply, and export) so the
@@ -542,6 +552,9 @@ if ($reportRequested) {
                     $undoText = $undoHint
                 }
             }
+            elseif (-not $applyChanges -and $NoBackup) {
+                $undoText = 'Nothing to undo. With -NoBackup, the matching -Apply run writes no backup, so it will have no undo command.'
+            }
             $reportDetails = [ordered]@{
                 'Preset' = if ($onlyFeatureMode) { '(none - OnlyFeature mode)' } else { $Preset }
                 'Platform' = $platformName
@@ -552,7 +565,7 @@ if ($reportRequested) {
                 'DNS over HTTPS' = if ($null -ne $dnsPlan) { $dnsPlan.Summary } else { 'Not managed' }
                 'Features' = if ($customFeatureRequested) { $selectedFeatureIds -join ', ' } else { 'Preset default' }
                 'Profile preferences' = if (-not $IncludeProfilePreferences) { 'Not included' } elseif (@($reportRows | Where-Object { $_.Kind -eq 'ProfileSkipped' }).Count -gt 0) { "Included ($ProfileRoot), some cleanup skipped" } else { "Included ($ProfileRoot)" }
-                'Backup' = if ($null -ne $backupPath) { $backupPath } elseif ($applyChanges) { 'None (-NoBackup)' } else { 'Written on -Apply' }
+                'Backup' = if ($null -ne $backupPath) { $backupPath } elseif ($NoBackup) { 'None (-NoBackup)' } else { 'Written on -Apply' }
             }
             $report = [pscustomobject]@{
                 Mode = $reportMode; ToolVersion = $ToolVersion; GeneratedAt = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss zzz')

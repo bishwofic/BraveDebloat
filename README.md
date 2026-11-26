@@ -130,6 +130,10 @@ To create a policy file without applying it, for example a Windows `.reg`:
 ./Invoke-BraveDebloat.ps1 -Platform Windows -Preset Extreme -ExportPolicyPath ./brave-policy.reg
 ```
 
+## Full Reference
+
+Every option (scopes, profile preferences, reports, `-UserSid`, exports and more) is documented in [docs/usage.md](docs/usage.md), maintained upstream.
+
 ## Sources
 
 Policy names and values come from Brave's official [Group Policy documentation](https://support.brave.app/hc/en-us/articles/360039248271-Group-Policy) and [policy templates](https://brave-browser-downloads.s3.brave.com/latest/policy_templates.zip).

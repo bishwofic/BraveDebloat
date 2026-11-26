@@ -26,3 +26,14 @@ Before opening a pull request, run:
 ```
 
 The last command is a preview and changes nothing.
+
+## Policy Template Checks
+
+Validate against a downloaded Brave policy template zip, and record a newer template version:
+
+```powershell
+./scripts/Test-LatestPolicyTemplates.ps1 -TemplateZipPath ./policy_templates.zip
+./scripts/Update-PolicyTemplateVersion.ps1 -TemplateZipPath ./policy_templates.zip
+```
+
+When syncing with upstream, keep `policyTemplateVersion` in `config/policies.json` in step with `config/policy-template-snapshot.json`.
